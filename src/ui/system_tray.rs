@@ -170,6 +170,7 @@ mod tests {
     use super::*;
     use crate::permissions::PermissionConfig;
     use crate::services::workspace_manager::WorkspaceManagerConfig;
+    use std::env;
 
     fn seed_managers() -> (
         Arc<WorkspaceManager>,
@@ -200,8 +201,25 @@ mod tests {
         )
     }
 
+    struct EnvGuard(&'static str);
+
+    impl EnvGuard {
+        fn set(key: &'static str, value: &'static str) -> Self {
+            env::set_var(key, value);
+            EnvGuard(key)
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            env::remove_var(self.0);
+        }
+    }
+
     #[tokio::test]
     async fn initialise_stub_sets_status() {
+        let _accessibility = EnvGuard::set("TILLERS_PERMISSION_ACCESSIBILITY", "true");
+        let _input = EnvGuard::set("TILLERS_PERMISSION_INPUT_MONITORING", "true");
         let (workspace_manager, window_manager, recovery, permissions) = seed_managers();
         let mut manager = SystemTrayManager::new(
             SystemTrayConfig::default(),

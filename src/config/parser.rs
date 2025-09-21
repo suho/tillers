@@ -8,10 +8,11 @@ use crate::models::{
     window_rule::WindowRule,
     workspace::Workspace,
 };
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::path::Path;
 use std::str::FromStr;
 use thiserror::Error;
+use toml::Value;
 use uuid::Uuid;
 
 #[derive(Error, Debug)]
@@ -80,7 +81,7 @@ impl ConfigParser {
         &mut self,
         content: &str,
     ) -> Result<Vec<Workspace>, ConfigParseError> {
-        let workspaces: Vec<Workspace> = toml::from_str(content)?;
+        let workspaces = parse_array_section::<Workspace>(content, &["workspace", "workspaces"])?;
         self.validate_workspaces(&workspaces)?;
         Ok(workspaces)
     }
@@ -89,7 +90,10 @@ impl ConfigParser {
         &mut self,
         content: &str,
     ) -> Result<Vec<TilingPattern>, ConfigParseError> {
-        let patterns: Vec<TilingPattern> = toml::from_str(content)?;
+        let patterns = parse_array_section::<TilingPattern>(
+            content,
+            &["pattern", "patterns", "tiling_pattern", "tiling_patterns"],
+        )?;
         self.validate_patterns(&patterns)?;
         Ok(patterns)
     }
@@ -98,7 +102,7 @@ impl ConfigParser {
         &mut self,
         content: &str,
     ) -> Result<Vec<KeyboardMapping>, ConfigParseError> {
-        let raw_content: toml::Value = toml::from_str(content)?;
+        let raw_content: Value = toml::from_str(content)?;
 
         if let Some(legacy_mappings) = self.detect_legacy_keyboard_format(&raw_content) {
             self.migration_warnings.push(
@@ -108,7 +112,15 @@ impl ConfigParser {
             return self.migrate_legacy_keyboard_mappings(legacy_mappings);
         }
 
-        let mappings: Vec<KeyboardMapping> = toml::from_str(content)?;
+        let mappings = parse_array_section_from_value::<KeyboardMapping>(
+            raw_content,
+            &[
+                "keyboard_mapping",
+                "keyboard_mappings",
+                "keybinding",
+                "keybindings",
+            ],
+        )?;
         self.validate_keyboard_mappings(&mappings)?;
         Ok(mappings)
     }
@@ -117,7 +129,10 @@ impl ConfigParser {
         &mut self,
         content: &str,
     ) -> Result<Vec<ApplicationProfile>, ConfigParseError> {
-        let profiles: Vec<ApplicationProfile> = toml::from_str(content)?;
+        let profiles = parse_array_section::<ApplicationProfile>(
+            content,
+            &["application_profile", "application_profiles", "application"],
+        )?;
         self.validate_application_profiles(&profiles)?;
         Ok(profiles)
     }
@@ -126,9 +141,19 @@ impl ConfigParser {
         &mut self,
         content: &str,
     ) -> Result<Vec<MonitorConfiguration>, ConfigParseError> {
-        let configs: Vec<MonitorConfiguration> = toml::from_str(content)?;
+        let configs = parse_array_section::<MonitorConfiguration>(
+            content,
+            &["monitor_configuration", "monitor_configurations", "monitor"],
+        )?;
         self.validate_monitor_configurations(&configs)?;
         Ok(configs)
+    }
+
+    pub fn parse_window_rules_toml(
+        &mut self,
+        content: &str,
+    ) -> Result<Vec<WindowRule>, ConfigParseError> {
+        parse_array_section::<WindowRule>(content, &["window_rule", "window_rules"])
     }
 
     pub fn get_migration_warnings(&self) -> &[String] {
@@ -473,6 +498,39 @@ impl ConfigParser {
 impl Default for ConfigParser {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn parse_array_section<T>(content: &str, keys: &[&str]) -> Result<Vec<T>, ConfigParseError>
+where
+    T: DeserializeOwned,
+{
+    if content.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let value: Value = toml::from_str(content)?;
+    parse_array_section_from_value(value, keys)
+}
+
+fn parse_array_section_from_value<T>(
+    value: Value,
+    keys: &[&str],
+) -> Result<Vec<T>, ConfigParseError>
+where
+    T: DeserializeOwned,
+{
+    match value {
+        Value::Array(_) => value.try_into().map_err(ConfigParseError::Toml),
+        Value::Table(mut table) => {
+            for key in keys {
+                if let Some(section) = table.remove(*key) {
+                    return section.try_into().map_err(ConfigParseError::Toml);
+                }
+            }
+            Ok(Vec::new())
+        }
+        _ => Ok(Vec::new()),
     }
 }
 

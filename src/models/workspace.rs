@@ -36,9 +36,11 @@ pub struct Workspace {
     pub tiling_pattern_id: Uuid,
 
     /// Map of monitor IDs to layout preferences
+    #[serde(default)]
     pub monitor_assignments: HashMap<String, String>,
 
     /// Boolean flag for automatic window arrangement
+    #[serde(default = "Workspace::default_auto_arrange")]
     pub auto_arrange: bool,
 
     /// Timestamp of workspace creation
@@ -91,6 +93,10 @@ pub struct WorkspaceUpdateRequest {
 }
 
 impl Workspace {
+    fn default_auto_arrange() -> bool {
+        true
+    }
+
     /// Create a new workspace from a creation request
     pub fn new(request: WorkspaceCreateRequest, default_pattern_id: Uuid) -> Result<Self> {
         // Validate the request

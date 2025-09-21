@@ -10,6 +10,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
+use toml::map::Map as TomlMap;
+use toml::Value;
 use uuid::Uuid;
 
 #[derive(Error, Debug)]
@@ -165,7 +167,7 @@ impl ConfigPersistence {
         let file_path = self.config.config_dir.join("workspaces.toml");
         self.backup_file(&file_path, "workspace_update")?;
 
-        let content = toml::to_string_pretty(&workspaces)?;
+        let content = self.serialize_array("workspace", workspaces)?;
         self.write_file_atomic(&file_path, &content)?;
 
         Ok(())
@@ -184,7 +186,7 @@ impl ConfigPersistence {
         let file_path = self.config.config_dir.join("patterns.toml");
         self.backup_file(&file_path, "pattern_update")?;
 
-        let content = toml::to_string_pretty(&patterns)?;
+        let content = self.serialize_array("pattern", patterns)?;
         self.write_file_atomic(&file_path, &content)?;
 
         Ok(())
@@ -197,15 +199,14 @@ impl ConfigPersistence {
         }
 
         let content = self.read_file_with_lock(&file_path)?;
-        let rules: Vec<WindowRule> = toml::from_str(&content).map_err(ConfigParseError::Toml)?;
-        Ok(rules)
+        Ok(self.parser.parse_window_rules_toml(&content)?)
     }
 
     pub fn save_window_rules(&mut self, rules: &[WindowRule]) -> Result<(), PersistenceError> {
         let file_path = self.config.config_dir.join("window_rules.toml");
         self.backup_file(&file_path, "window_rules_update")?;
 
-        let content = toml::to_string_pretty(&rules)?;
+        let content = self.serialize_array("window_rule", rules)?;
         self.write_file_atomic(&file_path, &content)?;
 
         Ok(())
@@ -224,7 +225,7 @@ impl ConfigPersistence {
         let file_path = self.config.config_dir.join("keybindings.toml");
         self.backup_file(&file_path, "keybindings_update")?;
 
-        let content = toml::to_string_pretty(&mappings)?;
+        let content = self.serialize_array("keyboard_mapping", mappings)?;
         self.write_file_atomic(&file_path, &content)?;
 
         Ok(())
@@ -245,7 +246,7 @@ impl ConfigPersistence {
         let file_path = self.config.config_dir.join("applications.toml");
         self.backup_file(&file_path, "applications_update")?;
 
-        let content = toml::to_string_pretty(&profiles)?;
+        let content = self.serialize_array("application_profile", profiles)?;
         self.write_file_atomic(&file_path, &content)?;
 
         Ok(())
@@ -266,7 +267,7 @@ impl ConfigPersistence {
         let file_path = self.config.config_dir.join("monitors.toml");
         self.backup_file(&file_path, "monitors_update")?;
 
-        let content = toml::to_string_pretty(&configs)?;
+        let content = self.serialize_array("monitor_configuration", configs)?;
         self.write_file_atomic(&file_path, &content)?;
 
         Ok(())
@@ -381,7 +382,7 @@ impl ConfigPersistence {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs();
+            .as_millis() as u64;
 
         let filename = file_path
             .file_name()
@@ -459,6 +460,22 @@ impl ConfigPersistence {
         Ok(())
     }
 
+    fn serialize_array<T>(&self, key: &str, items: &[T]) -> Result<String, PersistenceError>
+    where
+        T: Serialize + Clone,
+    {
+        let array = items
+            .iter()
+            .cloned()
+            .map(|item| Value::try_from(item).map_err(PersistenceError::Serialization))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut table = TomlMap::new();
+        table.insert(key.to_string(), Value::Array(array));
+        let document = Value::Table(table);
+        Ok(toml::to_string_pretty(&document)?)
+    }
+
     fn create_default_workspaces_config(&self) -> Result<String, PersistenceError> {
         let default_workspace = Workspace {
             id: Uuid::new_v4(),
@@ -474,7 +491,7 @@ impl ConfigPersistence {
         };
 
         let workspaces = vec![default_workspace];
-        Ok(toml::to_string_pretty(&workspaces)?)
+        self.serialize_array("workspace", &workspaces)
     }
 
     fn create_default_patterns_config(&self) -> Result<String, PersistenceError> {
@@ -492,22 +509,22 @@ impl ConfigPersistence {
         };
 
         let patterns = vec![default_pattern];
-        Ok(toml::to_string_pretty(&patterns)?)
+        self.serialize_array("pattern", &patterns)
     }
 
     fn create_default_keybindings_config(&self) -> Result<String, PersistenceError> {
         let mappings: Vec<KeyboardMapping> = Vec::new();
-        Ok(toml::to_string_pretty(&mappings)?)
+        self.serialize_array("keyboard_mapping", &mappings)
     }
 
     fn create_default_applications_config(&self) -> Result<String, PersistenceError> {
         let profiles: Vec<ApplicationProfile> = Vec::new();
-        Ok(toml::to_string_pretty(&profiles)?)
+        self.serialize_array("application_profile", &profiles)
     }
 
     fn create_default_monitors_config(&self) -> Result<String, PersistenceError> {
         let configs: Vec<MonitorConfiguration> = Vec::new();
-        Ok(toml::to_string_pretty(&configs)?)
+        self.serialize_array("monitor_configuration", &configs)
     }
 }
 

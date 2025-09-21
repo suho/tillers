@@ -58,7 +58,7 @@ impl TilleRSApp {
 
         // Initialize configuration manager
         // Initialize permission checker
-        let permission_config = PermissionConfig::default();
+        let permission_config = PermissionConfig::default().with_auto_prompt(true);
         let permission_checker = Arc::new(RwLock::new(PermissionChecker::new(permission_config)));
         debug!("Permission checker initialized");
 
@@ -66,7 +66,7 @@ impl TilleRSApp {
         let recovery_config = RecoveryConfig::default();
         let error_recovery = Arc::new(ErrorRecoveryManager::new(
             recovery_config,
-            PermissionChecker::new(PermissionConfig::default()),
+            PermissionChecker::new(PermissionConfig::default().with_auto_prompt(true)),
         ));
         debug!("Error recovery manager initialized");
 

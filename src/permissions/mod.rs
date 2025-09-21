@@ -2,6 +2,7 @@
 
 use crate::Result;
 use std::collections::HashMap;
+use std::env;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 use tracing::{debug, error, info, warn};
@@ -68,13 +69,21 @@ impl Default for PermissionConfig {
     fn default() -> Self {
         Self {
             check_interval: Duration::from_secs(30),
-            auto_prompt: true,
+            auto_prompt: false,
             required_permissions: vec![
                 PermissionType::Accessibility,
                 PermissionType::InputMonitoring,
             ],
             optional_permissions: vec![PermissionType::ScreenRecording],
         }
+    }
+}
+
+impl PermissionConfig {
+    /// Enable or disable automatic permission prompts.
+    pub fn with_auto_prompt(mut self, enabled: bool) -> Self {
+        self.auto_prompt = enabled;
+        self
     }
 }
 
@@ -168,7 +177,7 @@ impl PermissionChecker {
 
     /// Request permissions if auto_prompt is enabled
     pub async fn request_permissions_if_needed(&mut self) -> Result<()> {
-        if !self.config.auto_prompt {
+        if !self.prompts_enabled() {
             debug!("Auto-prompt disabled, skipping permission requests");
             return Ok(());
         }
@@ -189,11 +198,54 @@ impl PermissionChecker {
 
     /// Request a specific permission
     pub async fn request_permission(&self, permission: PermissionType) -> Result<()> {
+        if let Some(forced) = Self::env_override(&permission) {
+            debug!(
+                "Permission prompt bypassed via environment override for {:?}: {}",
+                permission, forced
+            );
+            return Ok(());
+        }
+
+        if !self.prompts_enabled() {
+            debug!("Permission prompt suppressed for {:?}", permission);
+            return Ok(());
+        }
+
         match permission {
             PermissionType::Accessibility => self.request_accessibility_permission().await,
             PermissionType::InputMonitoring => self.request_input_monitoring_permission().await,
             PermissionType::ScreenRecording => self.request_screen_recording_permission().await,
         }
+    }
+
+    fn prompts_enabled(&self) -> bool {
+        self.config.auto_prompt && env::var_os("TILLERS_DISABLE_PERMISSION_PROMPTS").is_none()
+    }
+
+    fn env_override(permission: &PermissionType) -> Option<bool> {
+        let key = match permission {
+            PermissionType::Accessibility => "TILLERS_PERMISSION_ACCESSIBILITY",
+            PermissionType::InputMonitoring => "TILLERS_PERMISSION_INPUT_MONITORING",
+            PermissionType::ScreenRecording => "TILLERS_PERMISSION_SCREEN_RECORDING",
+        };
+
+        env::var(key)
+            .ok()
+            .and_then(|value| match value.to_ascii_lowercase().as_str() {
+                "1" | "true" | "yes" | "on" => Some(true),
+                "0" | "false" | "no" | "off" => Some(false),
+                _ => None,
+            })
+    }
+
+    fn env_override_status(permission: &PermissionType) -> Option<PermissionStatus> {
+        Self::env_override(permission).map(|granted| {
+            if granted {
+                PermissionStatus::Granted
+            } else {
+                PermissionStatus::Denied
+            }
+        })
     }
 
     /// Get user-friendly instructions for enabling a permission
@@ -259,6 +311,13 @@ impl PermissionChecker {
     // Platform-specific permission checking methods
 
     async fn check_accessibility_permission(&self) -> Result<PermissionStatus> {
+        if let Some(status) = Self::env_override_status(&PermissionType::Accessibility) {
+            debug!(
+                "Using environment override for accessibility permission: {:?}",
+                status
+            );
+            return Ok(status);
+        }
         debug!("Checking accessibility permission");
 
         let granted = {
@@ -281,6 +340,13 @@ impl PermissionChecker {
     }
 
     async fn check_input_monitoring_permission(&self) -> Result<PermissionStatus> {
+        if let Some(status) = Self::env_override_status(&PermissionType::InputMonitoring) {
+            debug!(
+                "Using environment override for input monitoring permission: {:?}",
+                status
+            );
+            return Ok(status);
+        }
         debug!("Checking input monitoring permission");
 
         let granted = {
@@ -303,6 +369,13 @@ impl PermissionChecker {
     }
 
     async fn check_screen_recording_permission(&self) -> Result<PermissionStatus> {
+        if let Some(status) = Self::env_override_status(&PermissionType::ScreenRecording) {
+            debug!(
+                "Using environment override for screen recording permission: {:?}",
+                status
+            );
+            return Ok(status);
+        }
         debug!("Checking screen recording permission");
 
         let granted = {
@@ -480,9 +553,16 @@ impl PermissionSummary {
 mod tests {
     use super::*;
     use std::env;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[tokio::test]
     async fn test_permission_checker_creation() {
+        let _guard = env_lock().lock().unwrap();
         let config = PermissionConfig::default();
         let checker = PermissionChecker::new(config);
         assert!(checker.status_cache.is_empty());
@@ -490,6 +570,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_permission_check_with_env() {
+        let _guard = env_lock().lock().unwrap();
         env::set_var("TILLERS_PERMISSION_ACCESSIBILITY", "true");
         env::set_var("TILLERS_PERMISSION_INPUT_MONITORING", "false");
 
@@ -515,6 +596,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_all_required_permissions_check() {
+        let _guard = env_lock().lock().unwrap();
         env::set_var("TILLERS_PERMISSION_ACCESSIBILITY", "true");
         env::set_var("TILLERS_PERMISSION_INPUT_MONITORING", "true");
 
@@ -531,6 +613,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_permission_summary() {
+        let _guard = env_lock().lock().unwrap();
         env::set_var("TILLERS_PERMISSION_ACCESSIBILITY", "true");
         env::set_var("TILLERS_PERMISSION_INPUT_MONITORING", "false");
 
