@@ -42,32 +42,32 @@
 - macOS app bundle structure in target/
 
 ## Phase 3.1: Setup
-- [ ] T001 Create Rust project structure with Cargo.toml and workspace configuration
-- [ ] T002 Initialize Rust project with macOS dependencies (cocoa, objc, tokio, serde, uuid)
-- [ ] T003 [P] Configure Rust linting (clippy, rustfmt) and CI pipeline
-- [ ] T004 [P] Setup macOS app bundle structure and Info.plist configuration
-- [ ] T005 [P] Configure macOS entitlements for accessibility and input monitoring permissions
+- [x] T001 Create Rust project structure with Cargo.toml and workspace configuration
+- [x] T002 Initialize Rust project with macOS dependencies (cocoa, objc, tokio, serde, uuid)
+- [x] T003 [P] Configure Rust linting (clippy, rustfmt) and CI pipeline
+- [x] T004 [P] Setup macOS app bundle structure and Info.plist configuration
+- [x] T005 [P] Configure macOS entitlements for accessibility and input monitoring permissions
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
 
 ### Contract Tests
-- [ ] T006 [P] Contract test workspace manager API in tests/contract/test_workspace_manager.rs
-- [ ] T007 [P] Contract test window manager API in tests/contract/test_window_manager.rs  
-- [ ] T008 [P] Contract test keyboard handler API in tests/contract/test_keyboard_handler.rs
+- [x] T006 [P] Contract test workspace manager API in tests/contract/test_workspace_manager.rs
+- [x] T007 [P] Contract test window manager API in tests/contract/test_window_manager.rs  
+- [x] T008 [P] Contract test keyboard handler API in tests/contract/test_keyboard_handler.rs
 
 ### Integration Tests (from quickstart scenarios)
-- [ ] T009 [P] Integration test basic workspace creation and switching in tests/integration/test_workspace_switching.rs
-- [ ] T010 [P] Integration test multi-monitor workspace management in tests/integration/test_multi_monitor.rs
-- [ ] T011 [P] Integration test application-specific window rules in tests/integration/test_window_rules.rs
-- [ ] T012 [P] Integration test keyboard-only navigation in tests/integration/test_keyboard_navigation.rs
-- [ ] T013 [P] Integration test performance under load in tests/integration/test_performance.rs
-- [ ] T014 [P] Integration test error handling and recovery in tests/integration/test_error_handling.rs
+- [x] T009 [P] Integration test basic workspace creation and switching in tests/integration/test_workspace_switching.rs
+- [x] T010 [P] Integration test multi-monitor workspace management in tests/integration/test_multi_monitor.rs
+- [x] T011 [P] Integration test application-specific window rules in tests/integration/test_window_rules.rs
+- [x] T012 [P] Integration test keyboard-only navigation in tests/integration/test_keyboard_navigation.rs
+- [x] T013 [P] Integration test performance under load in tests/integration/test_performance.rs
+- [x] T014 [P] Integration test error handling and recovery in tests/integration/test_error_handling.rs
 
 ## Phase 3.3: Core Implementation (ONLY after tests are failing)
 
 ### Data Models
-- [ ] T015 [P] Workspace model with validation and serialization in src/models/workspace.rs
+- [x] T015 [P] Workspace model with validation and serialization in src/models/workspace.rs
 - [ ] T016 [P] TilingPattern model with layout algorithms in src/models/tiling_pattern.rs
 - [ ] T017 [P] WindowRule model for application-specific behavior in src/models/window_rule.rs
 - [ ] T018 [P] MonitorConfiguration model for multi-display support in src/models/monitor_configuration.rs
