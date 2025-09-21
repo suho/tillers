@@ -4,16 +4,28 @@ A keyboard-first tiling window manager for macOS built in Rust.
 
 ## Overview
 
-TilleRS is a powerful tiling window manager designed specifically for macOS that emphasizes keyboard-driven workflow and productivity. It provides workspace management, multi-monitor support, and customizable window layouts while maintaining native macOS integration.
+TilleRS helps macOS power users stay in flow by organizing windows into logical workspaces and providing instant, keyboard-driven context switching. The current codebase focuses on building the core workspace and keyboard services, establishing guardrails for macOS integration, and collecting the metrics needed to keep workspace switches under 200 ms.
 
-## Features
+## Status
 
-- **Keyboard-First Design**: Navigate and manage windows without touching the mouse
-- **Workspace Management**: Organize applications into logical workspaces
-- **Multi-Monitor Support**: Consistent layouts across multiple displays
-- **Application-Specific Rules**: Customize behavior for specific applications
-- **Performance Optimized**: Sub-200ms workspace switching, minimal memory footprint
-- **Native macOS Integration**: Uses Accessibility APIs and Core Graphics
+- Pre-alpha demonstration build; window manipulation and most macOS integration points are still stubs
+- Asynchronous workspace management with event hooks, validation, and performance metrics is implemented
+- Keyboard shortcut handling now enforces the Option (Alt/Option) modifier by default and migrates legacy Command shortcuts automatically
+- CLI tooling, UI integrations, and on-device window management are in active development
+
+## Current Capabilities
+
+- Create and manage workspaces with validation, event emission, and metrics tracking via `WorkspaceManager`
+- Maintain keyboard shortcut mappings with conflict detection and Option-key enforcement through `KeyboardHandler`
+- Rich domain models for tiling patterns, window rules, monitor configurations, and application profiles
+- Structured tracing instrumentation for diagnostics (`tillers=debug,info`)
+
+## Roadmap
+
+- Integrate with macOS Accessibility APIs for real window placement and focus management
+- Expose workspace operations through a command-line interface and user-facing UI layer
+- Flesh out contract and integration tests in `tests/integration_tests.rs` and Criterion benchmarks in `benches/`
+- Persist configuration to `~/.config/tillers/` and support live reload of workspace layouts
 
 ## Requirements
 
@@ -39,43 +51,30 @@ cargo install --path .
 
 ## Usage
 
-### First Run
+### Run the Demo
 
-1. Grant accessibility permissions when prompted
-2. Grant input monitoring permissions for keyboard shortcuts
-3. Start TilleRS: `tillers`
-
-### Basic Commands
+The current binary boots the async services, creates a default workspace, and logs activity. Run it with tracing enabled to inspect the flow:
 
 ```bash
-# Start TilleRS daemon
-tillers
-
-# List available workspaces
-tillers workspace list
-
-# Create a new workspace
-tillers workspace create development
-
-# Switch to workspace
-tillers workspace switch development
-
-# Show help
-tillers --help
+RUST_LOG=tillers=debug,info cargo run
 ```
+
+Watch the log output for workspace creation, activation, and keyboard shortcut migration events. CLI subcommands such as `tillers workspace list` are not implemented yet and are tracked on the roadmap.
 
 ### Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| `Cmd + 1-9` | Switch to workspace 1-9 |
-| `Cmd + Shift + 1-9` | Move window to workspace 1-9 |
-| `Cmd + Space` | Cycle through tiling layouts |
-| `Cmd + Enter` | Focus next window |
+| `Option + 1-9` | Switch to workspace 1-9 |
+| `Option + Shift + 1-9` | Move window to workspace 1-9 |
+| `Option + Space` | Cycle through tiling layouts |
+| `Option + Enter` | Focus next window |
+
+> Legacy Command-based shortcuts are automatically migrated to use Option when loaded into the keyboard handler.
 
 ## Configuration
 
-TilleRS uses TOML configuration files located at `~/.config/tillers/`:
+TilleRS will use TOML configuration files located at `~/.config/tillers/`:
 
 ```toml
 # ~/.config/tillers/config.toml
@@ -84,8 +83,8 @@ default_layout = "main-stack"
 auto_balance = true
 
 [keybindings]
-workspace_switch = "cmd"
-window_move = "cmd+shift"
+workspace_switch = "option"
+window_move = "option+shift"
 
 [applications.terminal]
 workspace = "development"
@@ -108,23 +107,23 @@ cargo build
 # Release build with optimizations
 cargo build --release
 
-# Run tests
+# Run tests (many integration tests intentionally panic until features land)
 cargo test
 
 # Run with debug logging
 RUST_LOG=debug cargo run
 ```
 
-### Testing
+### Testing & Benchmarks
 
 ```bash
 # Run all tests
 cargo test
 
-# Run integration tests
+# Run integration test bundle (expected to fail until contract work lands)
 cargo test --test integration_tests
 
-# Run performance benchmarks
+# Build and run performance benchmarks
 cargo bench
 ```
 
@@ -132,51 +131,50 @@ cargo bench
 
 ```bash
 # Format code
-cargo fmt
+cargo fmt --all
 
 # Run linter
-cargo clippy
-
-# Check for issues
 cargo clippy -- -D warnings
 ```
 
 ## Architecture
 
-TilleRS is built with a modular architecture:
-
 ```
 src/
-├── models/          # Data models (Workspace, TilingPattern, WindowRule)
-├── services/        # Business logic (WorkspaceManager, WindowManager)
-├── macos/          # macOS system integration
-├── config/         # Configuration management
-├── cli/            # Command-line interface
-└── main.rs         # Application entry point
+├── config/          # Configuration loading and defaults
+├── lib.rs           # Crate exports and error types
+├── macos/           # macOS integration scaffolding
+├── main.rs          # Demo entry point wiring services together
+├── models/          # Domain models (Workspace, TilingPattern, KeyboardMapping, ...)
+├── services/        # Async services (WorkspaceManager, KeyboardHandler, TilingEngine, ...)
+├── ui/              # Placeholder for future UI integrations
+└── ...
+
+benches/             # Criterion benchmarks (workspace switching, window positioning)
+tests/               # Contract and integration tests (currently red by design)
+resources/           # macOS bundle metadata (Info.plist, entitlements)
 ```
 
 ### Key Components
 
-- **WorkspaceManager**: Handles workspace creation, switching, and persistence
-- **WindowManager**: Interfaces with macOS Accessibility APIs for window control
-- **TilingEngine**: Calculates window layouts and positions
-- **KeyboardHandler**: Manages global keyboard shortcuts
+- **WorkspaceManager**: Handles workspace creation, switching, validation, and emits events/metrics
+- **KeyboardHandler**: Registers shortcuts, enforces Option modifiers, and surfaces shortcut events
+- **TilingEngine**: Calculates window layouts (implementation in progress)
+- **macos module**: Provides the bridge into macOS Accessibility APIs (currently scaffolding)
 
-## Performance
+## Performance Targets
 
-TilleRS is optimized for performance:
-
-- **Workspace Switching**: < 200ms
-- **Window Positioning**: < 50ms
-- **Memory Usage**: < 100MB
-- **CPU Usage**: < 1% idle
+- Workspace switching under 200 ms (95th percentile)
+- Window positioning under 50 ms
+- Memory usage below 100 MB during normal operation
+- Idle CPU utilization below 1%
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Make your changes following the coding standards
-4. Add tests for new functionality
+4. Add tests for new functionality (or mark TODOs when features are still in flight)
 5. Run the test suite (`cargo test`)
 6. Commit your changes (`git commit -m 'Add amazing feature'`)
 7. Push to the branch (`git push origin feature/amazing-feature`)
@@ -185,9 +183,9 @@ TilleRS is optimized for performance:
 ### Development Guidelines
 
 - Follow Rust naming conventions
-- Use `rustfmt` for code formatting
-- Ensure all tests pass before submitting
-- Add documentation for public APIs
+- Use `cargo fmt --all` before committing
+- Ensure `cargo clippy -- -D warnings` passes
+- Document public APIs and keep specs/contracts in sync
 - Test on multiple macOS versions when possible
 
 ## License

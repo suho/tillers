@@ -1,9 +1,10 @@
 use crate::models::{Workspace, WorkspaceCreateRequest};
+use crate::config::simple_persistence::{SimpleConfigPersistence, SimplePersistenceConfig, SimplePersistenceError};
 use crate::{Result, TilleRSError};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// Events that can be triggered by workspace operations
@@ -63,6 +64,8 @@ pub struct WorkspaceManager {
     config: WorkspaceManagerConfig,
     /// Performance metrics
     metrics: Arc<RwLock<WorkspaceMetrics>>,
+    /// Configuration persistence
+    persistence: Arc<Mutex<SimpleConfigPersistence>>,
 }
 
 /// Performance metrics for workspace operations
@@ -84,14 +87,125 @@ pub struct WorkspaceMetrics {
 
 impl WorkspaceManager {
     /// Create a new workspace manager
-    pub fn new(config: WorkspaceManagerConfig) -> Self {
-        WorkspaceManager {
+    pub fn new(config: WorkspaceManagerConfig) -> Result<Self> {
+        let persistence_config = SimplePersistenceConfig::default();
+        let persistence = SimpleConfigPersistence::new(persistence_config);
+        
+        Ok(WorkspaceManager {
             workspaces: Arc::new(RwLock::new(HashMap::new())),
             active_workspace_id: Arc::new(RwLock::new(None)),
             event_listeners: Arc::new(Mutex::new(Vec::new())),
             config,
             metrics: Arc::new(RwLock::new(WorkspaceMetrics::default())),
+            persistence: Arc::new(Mutex::new(persistence)),
+        })
+    }
+
+    /// Create a new workspace manager with custom persistence config
+    pub fn new_with_persistence(config: WorkspaceManagerConfig, persistence_config: SimplePersistenceConfig) -> Result<Self> {
+        let persistence = SimpleConfigPersistence::new(persistence_config);
+        
+        Ok(WorkspaceManager {
+            workspaces: Arc::new(RwLock::new(HashMap::new())),
+            active_workspace_id: Arc::new(RwLock::new(None)),
+            event_listeners: Arc::new(Mutex::new(Vec::new())),
+            config,
+            metrics: Arc::new(RwLock::new(WorkspaceMetrics::default())),
+            persistence: Arc::new(Mutex::new(persistence)),
+        })
+    }
+
+    /// Initialize the workspace manager and load saved workspaces
+    pub async fn initialize(&self) -> Result<()> {
+        // Initialize configuration directory
+        {
+            let persistence = self.persistence.lock().await;
+            persistence.initialize_config_directory()
+                .map_err(|e| TilleRSError::ConfigurationError(format!("Failed to initialize config directory: {}", e)))?;
         }
+
+        // Load existing workspaces
+        self.load_workspaces_from_config().await?;
+
+        // Restore last active workspace if configured
+        if self.config.restore_last_active {
+            self.restore_last_active_workspace().await?;
+        }
+
+        info!("WorkspaceManager initialized successfully");
+        Ok(())
+    }
+
+    /// Load workspaces from configuration files
+    pub async fn load_workspaces_from_config(&self) -> Result<()> {
+        let mut persistence = self.persistence.lock().await;
+        
+        match persistence.load_workspaces() {
+            Ok(workspaces) => {
+                let mut workspace_map = HashMap::new();
+                for workspace in workspaces {
+                    workspace_map.insert(workspace.id, workspace);
+                }
+                
+                let workspace_count = workspace_map.len();
+                let mut ws_lock = self.workspaces.write().await;
+                *ws_lock = workspace_map;
+                drop(ws_lock);
+
+                info!("Loaded {} workspaces from configuration", workspace_count);
+                Ok(())
+            }
+            Err(SimplePersistenceError::IoError(ref e)) if e.kind() == std::io::ErrorKind::NotFound => {
+                // No configuration file exists yet, this is okay for first run
+                info!("No existing workspace configuration found, starting fresh");
+                Ok(())
+            }
+            Err(e) => {
+                warn!("Failed to load workspaces from config: {}", e);
+                Err(TilleRSError::ConfigurationError(format!("Failed to load workspaces: {}", e)).into())
+            }
+        }
+    }
+
+    /// Save workspaces to configuration files
+    pub async fn save_workspaces_to_config(&self) -> Result<()> {
+        if !self.config.auto_save {
+            return Ok(());
+        }
+
+        let workspaces = {
+            let ws_lock = self.workspaces.read().await;
+            ws_lock.values().cloned().collect::<Vec<_>>()
+        };
+
+        let mut persistence = self.persistence.lock().await;
+        persistence.save_workspaces(&workspaces)
+            .map_err(|e| TilleRSError::ConfigurationError(format!("Failed to save workspaces: {}", e)))?;
+
+        debug!("Saved {} workspaces to configuration", workspaces.len());
+        Ok(())
+    }
+
+    /// Restore the last active workspace from configuration
+    async fn restore_last_active_workspace(&self) -> Result<()> {
+        let workspaces = self.workspaces.read().await;
+        
+        // Find the workspace with the most recent last_used timestamp
+        let last_active = workspaces
+            .values()
+            .filter(|w| w.last_used.is_some())
+            .max_by(|a, b| a.last_used.cmp(&b.last_used));
+
+        if let Some(workspace) = last_active {
+            let workspace_id = workspace.id;
+            let workspace_name = workspace.name.clone();
+            drop(workspaces);
+            
+            self.switch_to_workspace(workspace_id).await?;
+            info!("Restored last active workspace: {}", workspace_name);
+        }
+
+        Ok(())
     }
 
     /// Create a new workspace
@@ -162,6 +276,11 @@ impl WorkspaceManager {
         if active_id.is_none() {
             drop(active_id);
             self.switch_to_workspace(workspace_id).await?;
+        }
+
+        // Save to configuration
+        if let Err(e) = self.save_workspaces_to_config().await {
+            warn!("Failed to save workspace configuration after creation: {}", e);
         }
 
         let elapsed = start_time.elapsed().as_millis() as f64;
@@ -244,6 +363,11 @@ impl WorkspaceManager {
         self.emit_event(WorkspaceEvent::WorkspaceUpdated { workspace })
             .await;
 
+        // Save to configuration
+        if let Err(e) = self.save_workspaces_to_config().await {
+            warn!("Failed to save workspace configuration after update: {}", e);
+        }
+
         info!("Updated workspace {}", workspace_id);
         Ok(())
     }
@@ -289,6 +413,11 @@ impl WorkspaceManager {
         // Emit event
         self.emit_event(WorkspaceEvent::WorkspaceDeleted { workspace_id })
             .await;
+
+        // Save to configuration
+        if let Err(e) = self.save_workspaces_to_config().await {
+            warn!("Failed to save workspace configuration after deletion: {}", e);
+        }
 
         info!("Deleted workspace {}", workspace_id);
         Ok(())
@@ -409,6 +538,23 @@ impl WorkspaceManager {
         *metrics = WorkspaceMetrics::default();
     }
 
+    /// Export configuration to a file (simplified version)
+    pub async fn export_config(&self, export_path: &std::path::Path) -> Result<()> {
+        let workspaces = {
+            let ws_lock = self.workspaces.read().await;
+            ws_lock.values().cloned().collect::<Vec<_>>()
+        };
+
+        let content = toml::to_string_pretty(&workspaces)
+            .map_err(|e| TilleRSError::ConfigurationError(format!("Failed to serialize workspaces: {}", e)))?;
+        
+        std::fs::write(export_path, content)
+            .map_err(|e| TilleRSError::ConfigurationError(format!("Failed to write export file: {}", e)))?;
+        
+        info!("Exported configuration to {}", export_path.display());
+        Ok(())
+    }
+
     /// Validate workspace configuration consistency
     pub async fn validate_all_workspaces(&self) -> Vec<(Uuid, TilleRSError)> {
         let workspaces = self.workspaces.read().await;
@@ -508,8 +654,13 @@ impl WorkspaceManagerBuilder {
     }
 
     /// Build the workspace manager
-    pub fn build(self) -> WorkspaceManager {
+    pub fn build(self) -> Result<WorkspaceManager> {
         WorkspaceManager::new(self.config)
+    }
+
+    /// Build the workspace manager with custom persistence config
+    pub fn build_with_persistence(self, persistence_config: SimplePersistenceConfig) -> Result<WorkspaceManager> {
+        WorkspaceManager::new_with_persistence(self.config, persistence_config)
     }
 }
 

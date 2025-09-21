@@ -4,10 +4,16 @@
 //! context switching between projects while maintaining predictable window layouts
 //! across multiple monitors.
 
+pub mod cli;
 pub mod config;
+pub mod error_recovery;
+pub mod lifecycle;
+pub mod logging;
 pub mod macos;
 pub mod models;
+pub mod permissions;
 pub mod services;
+pub mod ui;
 
 pub use models::*;
 pub use services::*;

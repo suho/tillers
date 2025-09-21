@@ -76,25 +76,25 @@
 
 ### Core Services
 - [x] T021 WorkspaceManager service for workspace CRUD and switching in src/services/workspace_manager.rs
-- [ ] T022 WindowManager service for macOS window manipulation via Accessibility APIs in src/services/window_manager.rs
-- [ ] T023 KeyboardHandler service for global hotkey registration (Option-first combos, legacy Command migration) in src/services/keyboard_handler.rs
-- [ ] T024 TilingEngine service for window layout calculation and positioning in src/services/tiling_engine.rs
+- [x] T022 WindowManager service for macOS window manipulation via Accessibility APIs in src/services/window_manager.rs
+- [x] T023 KeyboardHandler service for global hotkey registration (Option-first combos, legacy Command migration) in src/services/keyboard_handler.rs
+- [x] T024 TilingEngine service for window layout calculation and positioning in src/services/tiling_engine.rs
 
 ### macOS Integration Layer
-- [ ] T025 [P] Accessibility API wrapper for window detection and manipulation in src/macos/accessibility.rs
-- [ ] T026 [P] Core Graphics API wrapper for monitor enumeration and geometry in src/macos/core_graphics.rs
-- [ ] T027 [P] Objective-C bridge layer for NSApplication and system integration in src/macos/objc_bridge.rs
+- [x] T025 [P] Accessibility API wrapper for window detection and manipulation in src/macos/accessibility.rs
+- [x] T026 [P] Core Graphics API wrapper for monitor enumeration and geometry in src/macos/core_graphics.rs
+- [x] T027 [P] Objective-C bridge layer for NSApplication and system integration in src/macos/objc_bridge.rs
 
 ### Configuration Management
-- [ ] T028 Configuration parser for TOML workspace definitions (validate Option default, warn on Command legacy) in src/config/parser.rs
-- [ ] T029 Configuration validator with schema validation in src/config/validator.rs
-- [ ] T030 Configuration persistence with atomic file operations in src/config/persistence.rs
+- [x] T028 Configuration parser for TOML workspace definitions (validate Option default, warn on Command legacy) in src/config/parser.rs
+- [x] T029 Configuration validator with schema validation in src/config/validator.rs
+- [x] T030 Configuration persistence with atomic file operations in src/config/persistence.rs
 
 ## Phase 3.4: Integration
-- [ ] T031 Connect WorkspaceManager to file-based configuration storage with migration for Command→Option shortcuts
-- [ ] T032 Integrate TilingEngine with WindowManager for automatic layout
-- [ ] T033 Connect KeyboardHandler to WorkspaceManager for shortcut-triggered actions (ensure Option defaults applied and conflicts resolved)
-- [ ] T034 Add structured logging with configurable levels using tracing crate
+- [x] T031 Connect WorkspaceManager to file-based configuration storage with migration for Command→Option shortcuts
+- [x] T032 Integrate TilingEngine with WindowManager for automatic layout
+- [x] T033 Connect KeyboardHandler to WorkspaceManager for shortcut-triggered actions (ensure Option defaults applied and conflicts resolved)
+- [x] T034 Add structured logging with configurable levels using tracing crate
 - [ ] T035 Implement permission checker for accessibility and input monitoring
 - [ ] T036 Add error recovery for API failures and permission issues
 
