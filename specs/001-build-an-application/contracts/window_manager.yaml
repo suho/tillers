@@ -1,0 +1,315 @@
+openapi: 3.0.0
+info:
+  title: Window Manager Internal API
+  description: Internal API contract for window manipulation operations
+  version: 1.0.0
+
+components:
+  schemas:
+    WindowInfo:
+      type: object
+      required:
+        - id
+        - title
+        - application_name
+        - bundle_id
+        - position
+        - size
+      properties:
+        id:
+          type: integer
+          description: System window ID
+        title:
+          type: string
+        application_name:
+          type: string
+        bundle_id:
+          type: string
+        position:
+          $ref: '#/components/schemas/Point'
+        size:
+          $ref: '#/components/schemas/Size'
+        is_minimized:
+          type: boolean
+        is_fullscreen:
+          type: boolean
+        is_focused:
+          type: boolean
+        monitor_id:
+          type: string
+
+    Point:
+      type: object
+      required:
+        - x
+        - y
+      properties:
+        x:
+          type: number
+          format: float
+        y:
+          type: number
+          format: float
+
+    Size:
+      type: object
+      required:
+        - width
+        - height
+      properties:
+        width:
+          type: number
+          format: float
+          minimum: 0
+        height:
+          type: number
+          format: float
+          minimum: 0
+
+    Rectangle:
+      type: object
+      required:
+        - x
+        - y
+        - width
+        - height
+      properties:
+        x:
+          type: number
+          format: float
+        y:
+          type: number
+          format: float
+        width:
+          type: number
+          format: float
+          minimum: 0
+        height:
+          type: number
+          format: float
+          minimum: 0
+
+    WindowPositionRequest:
+      type: object
+      required:
+        - window_id
+        - position
+        - size
+      properties:
+        window_id:
+          type: integer
+        position:
+          $ref: '#/components/schemas/Point'
+        size:
+          $ref: '#/components/schemas/Size'
+        animate:
+          type: boolean
+          default: false
+
+    TilingRequest:
+      type: object
+      required:
+        - window_ids
+        - layout_area
+        - pattern_id
+      properties:
+        window_ids:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+        layout_area:
+          $ref: '#/components/schemas/Rectangle'
+        pattern_id:
+          type: string
+          format: uuid
+        force_arrange:
+          type: boolean
+          default: false
+
+    ErrorResponse:
+      type: object
+      required:
+        - error_code
+        - message
+      properties:
+        error_code:
+          type: string
+          enum: [WINDOW_NOT_FOUND, PERMISSION_DENIED, INVALID_POSITION, API_ERROR]
+        message:
+          type: string
+        details:
+          type: object
+
+paths:
+  /windows:
+    get:
+      summary: List all visible windows
+      operationId: listWindows
+      parameters:
+        - name: filter_minimized
+          in: query
+          schema:
+            type: boolean
+            default: true
+        - name: monitor_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of windows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WindowInfo'
+
+  /windows/{window_id}:
+    get:
+      summary: Get window details
+      operationId: getWindow
+      parameters:
+        - name: window_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Window details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WindowInfo'
+        '404':
+          description: Window not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /windows/{window_id}/position:
+    put:
+      summary: Set window position and size
+      operationId: setWindowPosition
+      parameters:
+        - name: window_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - position
+                - size
+              properties:
+                position:
+                  $ref: '#/components/schemas/Point'
+                size:
+                  $ref: '#/components/schemas/Size'
+                animate:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Window position updated
+        '400':
+          description: Invalid position or size
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Window not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /windows/{window_id}/focus:
+    post:
+      summary: Focus window
+      operationId: focusWindow
+      parameters:
+        - name: window_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Window focused
+        '404':
+          description: Window not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /windows/tile:
+    post:
+      summary: Arrange windows according to tiling pattern
+      operationId: tileWindows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TilingRequest'
+      responses:
+        '200':
+          description: Windows tiled successfully
+        '400':
+          description: Invalid tiling request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /monitors:
+    get:
+      summary: List available monitors
+      operationId: listMonitors
+      responses:
+        '200':
+          description: List of monitors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    bounds:
+                      $ref: '#/components/schemas/Rectangle'
+                    is_primary:
+                      type: boolean

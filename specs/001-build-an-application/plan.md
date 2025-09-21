@@ -1,8 +1,8 @@
 
-# Implementation Plan: [FEATURE]
+# Implementation Plan: TilleRS - Keyboard-First Tiling Window Manager
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
+**Branch**: `001-build-an-application` | **Date**: 2025-09-21 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/Users/suho/Developer/suho/tillers/specs/001-build-an-application/spec.md`
 
 ## Execution Flow (/plan command scope)
 ```
@@ -31,50 +31,50 @@
 - Phase 3-4: Implementation execution (manual or via tools)
 
 ## Summary
-[Extract from feature spec: primary requirement + technical approach from research]
+TilleRS is a keyboard-first tiling window manager for macOS that automatically organizes windows into logical workspaces, enabling instant context switching between projects while maintaining predictable window layouts across multiple monitors. Built with Rust for performance and memory safety, utilizing macOS Accessibility APIs and Core Graphics through Objective-C interop to eliminate manual window management and keep users in flow state.
 
 ## Technical Context
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [single/web/mobile - determines source structure]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Language/Version**: Rust 1.75+  
+**Primary Dependencies**: cocoa, objc (Objective-C interop), tokio (async runtime), Core Graphics framework, Accessibility APIs  
+**Storage**: File-based configuration (JSON/TOML), no database required  
+**Testing**: cargo test, integration tests for window management scenarios  
+**Target Platform**: macOS 12+ (Monterey and later)
+**Project Type**: single - native macOS application  
+**Performance Goals**: <200ms workspace switching, <50ms window positioning response  
+**Constraints**: <100MB memory usage, must respect macOS sandboxing and permissions, keyboard-only operation  
+**Scale/Scope**: Single-user desktop application, 20+ configurable workspaces, unlimited windows per workspace
 
 ## Constitution Check
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 ### Code Quality Gates
-- [ ] All code changes will pass linting, formatting, and static analysis
-- [ ] Technical debt will be documented and addressable within two cycles
-- [ ] Code quality metrics will be maintained or improved
+- [x] All code changes will pass linting, formatting, and static analysis (clippy, rustfmt)
+- [x] Technical debt will be documented and addressable within two cycles
+- [x] Code quality metrics will be maintained or improved (Rust's safety guarantees)
 
 ### Testing Standards Compliance
-- [ ] TDD approach planned: tests written before implementation
-- [ ] Unit test coverage plan targets ≥90% for new code
-- [ ] Integration tests planned for all user workflows
-- [ ] Performance tests planned for critical paths
+- [x] TDD approach planned: tests written before implementation
+- [x] Unit test coverage plan targets ≥90% for new code
+- [x] Integration tests planned for all user workflows (workspace switching, window management)
+- [x] Performance tests planned for critical paths (response time validation)
 
 ### User Experience Standards
-- [ ] Design patterns and accessibility standards identified
-- [ ] Error message strategy defined (clear, actionable, user-friendly)
-- [ ] Loading states and user feedback planned for all actions
-- [ ] WCAG 2.1 AA compliance approach defined
+- [x] Design patterns and accessibility standards identified (keyboard-first, predictable layouts)
+- [x] Error message strategy defined (clear system notifications for failures)
+- [x] Loading states and user feedback planned (visual indicators for workspace transitions)
+- [x] WCAG 2.1 AA compliance approach defined (keyboard navigation, screen reader support)
 
 ### Performance Requirements
-- [ ] Response time targets ≤200ms for critical actions
-- [ ] Memory usage limits defined and trackable
-- [ ] Database query performance targets ≤50ms (95th percentile)
-- [ ] Performance monitoring and alerting planned
+- [x] Response time targets ≤200ms for critical actions (workspace switching)
+- [x] Memory usage limits defined and trackable (<100MB total)
+- [x] Database query performance targets ≤50ms (file-based config, no DB queries)
+- [x] Performance monitoring and alerting planned (metrics collection for response times)
 
 ### Observability Requirements
-- [ ] Logging strategy for critical paths defined
-- [ ] Error logging with debugging context planned
-- [ ] Performance metrics collection planned
-- [ ] Health monitoring and dashboard approach defined
+- [x] Logging strategy for critical paths defined (structured logging for window operations)
+- [x] Error logging with debugging context planned (API failures, permission issues)
+- [x] Performance metrics collection planned (timing metrics for all operations)
+- [x] Health monitoring and dashboard approach defined (system health checks, error rates)
 
 ## Project Structure
 
@@ -126,7 +126,7 @@ ios/ or android/
 └── [platform-specific structure]
 ```
 
-**Structure Decision**: [DEFAULT to Option 1 unless Technical Context indicates web/mobile app]
+**Structure Decision**: Option 1 (Single project) - Native macOS application with modular Rust architecture
 
 ## Phase 0: Outline & Research
 1. **Extract unknowns from Technical Context** above:
@@ -187,17 +187,31 @@ ios/ or android/
 **Task Generation Strategy**:
 - Load `.specify/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
-- Each contract → contract test task [P]
-- Each entity → model creation task [P] 
-- Each user story → integration test task
-- Implementation tasks to make tests pass
+- From contracts: 3 API contract test tasks (workspace_manager, window_manager, keyboard_handler) [P]
+- From data model: 6 entity model creation tasks (Workspace, TilingPattern, WindowRule, MonitorConfiguration, KeyboardMapping, ApplicationProfile) [P]
+- From quickstart: 6 integration test scenarios from user acceptance tests
+- Implementation tasks to make all tests pass (estimated 12-15 tasks)
 
 **Ordering Strategy**:
-- TDD order: Tests before implementation 
-- Dependency order: Models before services before UI
-- Mark [P] for parallel execution (independent files)
+- TDD order: All contract tests → All integration tests → Model implementations → Service implementations → CLI implementation
+- Dependency order: Data models → Core services → Window management → Keyboard handling → Configuration UI
+- Mark [P] for parallel execution: All tests, all models, independent service modules
+- Sequential: Service integration, final system assembly
 
-**Estimated Output**: 25-30 numbered, ordered tasks in tasks.md
+**Rust-Specific Task Considerations**:
+- Cargo project setup with proper workspace structure
+- Objective-C interop setup for macOS APIs
+- Permission handling and entitlements configuration
+- Performance benchmarking tasks for SLA validation
+- macOS app bundle creation and signing
+
+**Estimated Output**: 28-32 numbered, ordered tasks in tasks.md
+
+**Key Parallel Execution Groups**:
+1. Contract tests (3 tasks) - can run simultaneously
+2. Data model implementation (6 tasks) - independent modules
+3. Core service implementation (4 tasks) - after models complete
+4. Integration tests (6 tasks) - can run after basic implementation
 
 **IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
 
@@ -221,18 +235,18 @@ ios/ or android/
 *This checklist is updated during execution flow*
 
 **Phase Status**:
-- [ ] Phase 0: Research complete (/plan command)
-- [ ] Phase 1: Design complete (/plan command)
-- [ ] Phase 2: Task planning complete (/plan command - describe approach only)
+- [x] Phase 0: Research complete (/plan command)
+- [x] Phase 1: Design complete (/plan command)
+- [x] Phase 2: Task planning complete (/plan command - describe approach only)
 - [ ] Phase 3: Tasks generated (/tasks command)
 - [ ] Phase 4: Implementation complete
 - [ ] Phase 5: Validation passed
 
 **Gate Status**:
-- [ ] Initial Constitution Check: PASS
-- [ ] Post-Design Constitution Check: PASS
-- [ ] All NEEDS CLARIFICATION resolved
-- [ ] Complexity deviations documented
+- [x] Initial Constitution Check: PASS
+- [x] Post-Design Constitution Check: PASS
+- [x] All NEEDS CLARIFICATION resolved
+- [x] Complexity deviations documented
 
 ---
 *Based on Constitution v1.0.0 - See `.specify/memory/constitution.md`*

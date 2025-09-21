@@ -1,0 +1,247 @@
+openapi: 3.0.0
+info:
+  title: Workspace Manager Internal API
+  description: Internal API contract for workspace management operations
+  version: 1.0.0
+
+components:
+  schemas:
+    Workspace:
+      type: object
+      required:
+        - id
+        - name
+        - keyboard_shortcut
+        - tiling_pattern_id
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        keyboard_shortcut:
+          type: string
+          pattern: '^(cmd|ctrl|opt|shift)(\+(cmd|ctrl|opt|shift))*\+[a-zA-Z0-9]$'
+        tiling_pattern_id:
+          type: string
+          format: uuid
+        auto_arrange:
+          type: boolean
+          default: true
+        created_at:
+          type: string
+          format: date-time
+        last_used:
+          type: string
+          format: date-time
+
+    WorkspaceCreateRequest:
+      type: object
+      required:
+        - name
+        - keyboard_shortcut
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        keyboard_shortcut:
+          type: string
+        tiling_pattern_id:
+          type: string
+          format: uuid
+        auto_arrange:
+          type: boolean
+          default: true
+
+    WorkspaceUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        keyboard_shortcut:
+          type: string
+        tiling_pattern_id:
+          type: string
+          format: uuid
+        auto_arrange:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      required:
+        - error_code
+        - message
+      properties:
+        error_code:
+          type: string
+          enum: [VALIDATION_ERROR, DUPLICATE_SHORTCUT, WORKSPACE_NOT_FOUND, PERMISSION_DENIED]
+        message:
+          type: string
+        details:
+          type: object
+
+paths:
+  /workspaces:
+    get:
+      summary: List all workspaces
+      operationId: listWorkspaces
+      responses:
+        '200':
+          description: List of workspaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Workspace'
+
+    post:
+      summary: Create new workspace
+      operationId: createWorkspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreateRequest'
+      responses:
+        '201':
+          description: Workspace created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Duplicate keyboard shortcut
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workspaces/{workspace_id}:
+    get:
+      summary: Get workspace by ID
+      operationId: getWorkspace
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workspace details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update workspace
+      operationId: updateWorkspace
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceUpdateRequest'
+      responses:
+        '200':
+          description: Workspace updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Delete workspace
+      operationId: deleteWorkspace
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Workspace deleted successfully
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /workspaces/{workspace_id}/activate:
+    post:
+      summary: Switch to workspace
+      operationId: activateWorkspace
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workspace activated successfully
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Permission denied (accessibility permissions required)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
