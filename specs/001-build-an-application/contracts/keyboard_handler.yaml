@@ -1,0 +1,264 @@
+openapi: 3.0.0
+info:
+  title: Keyboard Handler Internal API
+  description: Internal API contract for keyboard shortcut management
+  version: 1.0.0
+
+components:
+  schemas:
+    KeyboardShortcut:
+      type: object
+      required:
+        - id
+        - combination
+        - action_type
+        - enabled
+      properties:
+        id:
+          type: string
+          format: uuid
+        combination:
+          type: string
+          description: Key combination in format 'modifier+modifier+key'
+          pattern: '^(cmd|ctrl|opt|shift)(\+(cmd|ctrl|opt|shift))*\+[a-zA-Z0-9F1-F12]$'
+        action_type:
+          type: string
+          enum: [SWITCH_WORKSPACE, MOVE_WINDOW, RESIZE_WINDOW, CREATE_WORKSPACE, TOGGLE_FULLSCREEN]
+        target_id:
+          type: string
+          format: uuid
+          description: Target workspace ID for SWITCH_WORKSPACE actions
+        parameters:
+          type: object
+          description: Action-specific parameters
+        enabled:
+          type: boolean
+        global_scope:
+          type: boolean
+          description: Whether shortcut works globally or only when app is focused
+
+    ShortcutRegistrationRequest:
+      type: object
+      required:
+        - combination
+        - action_type
+      properties:
+        combination:
+          type: string
+        action_type:
+          type: string
+          enum: [SWITCH_WORKSPACE, MOVE_WINDOW, RESIZE_WINDOW, CREATE_WORKSPACE, TOGGLE_FULLSCREEN]
+        target_id:
+          type: string
+          format: uuid
+        parameters:
+          type: object
+        enabled:
+          type: boolean
+          default: true
+        global_scope:
+          type: boolean
+          default: true
+
+    KeyEvent:
+      type: object
+      required:
+        - shortcut_id
+        - timestamp
+        - combination
+      properties:
+        shortcut_id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        combination:
+          type: string
+        modifiers:
+          type: array
+          items:
+            type: string
+            enum: [cmd, ctrl, opt, shift]
+        key:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - error_code
+        - message
+      properties:
+        error_code:
+          type: string
+          enum: [INVALID_COMBINATION, DUPLICATE_SHORTCUT, PERMISSION_DENIED, REGISTRATION_FAILED]
+        message:
+          type: string
+        details:
+          type: object
+
+paths:
+  /shortcuts:
+    get:
+      summary: List all registered shortcuts
+      operationId: listShortcuts
+      parameters:
+        - name: enabled_only
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of keyboard shortcuts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KeyboardShortcut'
+
+    post:
+      summary: Register new keyboard shortcut
+      operationId: registerShortcut
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShortcutRegistrationRequest'
+      responses:
+        '201':
+          description: Shortcut registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyboardShortcut'
+        '400':
+          description: Invalid shortcut combination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Shortcut combination already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Permission denied (input monitoring required)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /shortcuts/{shortcut_id}:
+    get:
+      summary: Get shortcut details
+      operationId: getShortcut
+      parameters:
+        - name: shortcut_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Shortcut details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyboardShortcut'
+        '404':
+          description: Shortcut not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update shortcut
+      operationId: updateShortcut
+      parameters:
+        - name: shortcut_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                combination:
+                  type: string
+                enabled:
+                  type: boolean
+                parameters:
+                  type: object
+      responses:
+        '200':
+          description: Shortcut updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyboardShortcut'
+        '400':
+          description: Invalid update request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Shortcut not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Unregister shortcut
+      operationId: unregisterShortcut
+      parameters:
+        - name: shortcut_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Shortcut unregistered successfully
+        '404':
+          description: Shortcut not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /events:
+    get:
+      summary: Get recent key events (for debugging)
+      operationId: getKeyEvents
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Recent key events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/KeyEvent'

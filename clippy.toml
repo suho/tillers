@@ -1,0 +1,4 @@
+# Clippy configuration for TilleRS
+# Enable additional lints for better code quality
+avoid-breaking-exported-api = false
+msrv = "1.75"

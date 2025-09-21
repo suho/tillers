@@ -1,8 +1,8 @@
 
-# Implementation Plan: [FEATURE]
+# Implementation Plan: TilleRS - Keyboard-First Tiling Window Manager
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
+**Branch**: `001-build-an-application` | **Date**: 2025-09-21 | **Spec**: /Users/suho/Developer/suho/tillers/specs/001-build-an-application/spec.md
+**Input**: Feature specification from `/specs/001-build-an-application/spec.md`
 
 ## Execution Flow (/plan command scope)
 ```
@@ -31,50 +31,51 @@
 - Phase 3-4: Implementation execution (manual or via tools)
 
 ## Summary
-[Extract from feature spec: primary requirement + technical approach from research]
+Building TilleRS, a keyboard-first tiling window manager for macOS that automatically organizes windows into logical workspaces, eliminating manual dragging and resizing. The system enables instant context switching between projects while maintaining predictable window layouts across multiple monitors. **Modification**: Update default keyboard hotkey from "command" (cmd) to "option" (alt/opt) on macOS for better compatibility and user preference.
 
 ## Technical Context
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [single/web/mobile - determines source structure]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Language/Version**: Rust 1.75+  
+**Primary Dependencies**: cocoa, objc (Objective-C interop), tokio (async runtime)  
+**Storage**: File-based configuration (TOML/JSON)  
+**Testing**: cargo test, integration tests for window management scenarios  
+**Target Platform**: macOS 12+ (Monterey and later)
+**Project Type**: single - native macOS application  
+**Performance Goals**: <200ms workspace switching, <100MB memory usage  
+**Constraints**: macOS-only, requires accessibility permissions, keyboard-centric interface  
+**Scale/Scope**: Personal productivity tool, supporting unlimited workspaces per user
+**Keyboard Hotkey Update**: Change default hotkey modifier from Command (cmd) to Option (alt/opt) for better macOS integration and reduced conflicts with system shortcuts
 
 ## Constitution Check
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
 ### Code Quality Gates
-- [ ] All code changes will pass linting, formatting, and static analysis
-- [ ] Technical debt will be documented and addressable within two cycles
-- [ ] Code quality metrics will be maintained or improved
+- [x] All code changes will pass linting, formatting, and static analysis (cargo clippy, cargo fmt)
+- [x] Technical debt will be documented and addressable within two cycles
+- [x] Code quality metrics will be maintained or improved
 
 ### Testing Standards Compliance
-- [ ] TDD approach planned: tests written before implementation
-- [ ] Unit test coverage plan targets ≥90% for new code
-- [ ] Integration tests planned for all user workflows
-- [ ] Performance tests planned for critical paths
+- [x] TDD approach planned: tests written before implementation
+- [x] Unit test coverage plan targets ≥90% for new code
+- [x] Integration tests planned for all user workflows (window management scenarios)
+- [x] Performance tests planned for critical paths (workspace switching)
 
 ### User Experience Standards
-- [ ] Design patterns and accessibility standards identified
-- [ ] Error message strategy defined (clear, actionable, user-friendly)
-- [ ] Loading states and user feedback planned for all actions
-- [ ] WCAG 2.1 AA compliance approach defined
+- [x] Design patterns and accessibility standards identified (macOS accessibility APIs)
+- [x] Error message strategy defined (clear, actionable, user-friendly)
+- [x] Loading states and user feedback planned for all actions (keyboard-first interface)
+- [x] WCAG 2.1 AA compliance approach defined (system accessibility integration)
 
 ### Performance Requirements
-- [ ] Response time targets ≤200ms for critical actions
-- [ ] Memory usage limits defined and trackable
-- [ ] Database query performance targets ≤50ms (95th percentile)
-- [ ] Performance monitoring and alerting planned
+- [x] Response time targets ≤200ms for critical actions (workspace switching)
+- [x] Memory usage limits defined and trackable (<100MB)
+- [x] Performance monitoring and alerting planned (via logging and metrics)
+- [x] No database performance requirements (file-based storage)
 
 ### Observability Requirements
-- [ ] Logging strategy for critical paths defined
-- [ ] Error logging with debugging context planned
-- [ ] Performance metrics collection planned
-- [ ] Health monitoring and dashboard approach defined
+- [x] Logging strategy for critical paths defined (RUST_LOG=debug support)
+- [x] Error logging with debugging context planned
+- [x] Performance metrics collection planned
+- [x] Health monitoring approach defined (system integration status)
 
 ## Project Structure
 
@@ -221,17 +222,17 @@ ios/ or android/
 *This checklist is updated during execution flow*
 
 **Phase Status**:
-- [ ] Phase 0: Research complete (/plan command)
-- [ ] Phase 1: Design complete (/plan command)
-- [ ] Phase 2: Task planning complete (/plan command - describe approach only)
+- [x] Phase 0: Research complete (/plan command)
+- [x] Phase 1: Design complete (/plan command)
+- [x] Phase 2: Task planning complete (/plan command - describe approach only)
 - [ ] Phase 3: Tasks generated (/tasks command)
 - [ ] Phase 4: Implementation complete
 - [ ] Phase 5: Validation passed
 
 **Gate Status**:
-- [ ] Initial Constitution Check: PASS
-- [ ] Post-Design Constitution Check: PASS
-- [ ] All NEEDS CLARIFICATION resolved
+- [x] Initial Constitution Check: PASS
+- [x] Post-Design Constitution Check: PASS
+- [x] All NEEDS CLARIFICATION resolved
 - [ ] Complexity deviations documented
 
 ---

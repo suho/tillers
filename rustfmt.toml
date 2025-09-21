@@ -1,0 +1,9 @@
+# Rust formatting configuration for TilleRS
+edition = "2021"
+max_width = 100
+tab_spaces = 4
+use_try_shorthand = true
+use_field_init_shorthand = true
+force_explicit_abi = true
+normalize_comments = true
+format_code_in_doc_comments = true

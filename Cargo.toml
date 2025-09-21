@@ -1,0 +1,66 @@
+[package]
+name = "tillers"
+version = "0.1.0"
+edition = "2021"
+authors = ["TilleRS Team"]
+description = "Keyboard-first tiling window manager for macOS"
+repository = "https://github.com/tillers/tillers"
+license = "MIT"
+keywords = ["window-manager", "tiling", "macos", "productivity"]
+categories = ["gui", "command-line-utilities"]
+
+[[bin]]
+name = "tillers"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# macOS integration
+cocoa = "0.25"
+objc = "0.2"
+core-graphics = "0.23"
+
+# Serialization and configuration
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1.0"
+dirs = "5.0"
+
+# Logging and error handling
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "time", "json"] }
+anyhow = "1.0"
+thiserror = "1.0"
+
+# CLI interface
+clap = { version = "4.0", features = ["derive"] }
+
+# Testing utilities
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3.0"
+mockall = "0.12"
+libc = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[[bench]]
+name = "workspace_switching"
+harness = false
+
+[[bench]]
+name = "window_positioning"
+harness = false

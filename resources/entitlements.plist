@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Required for window management and accessibility API access -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+    
+    <!-- Required for global hotkey monitoring -->
+    <key>com.apple.security.device.input-monitoring</key>
+    <true/>
+    
+    <!-- Required for accessing window information -->
+    <key>com.apple.security.automation.accessibility</key>
+    <true/>
+    
+    <!-- Allow outgoing network connections for configuration sync (future feature) -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    
+    <!-- Allow reading/writing user's home directory for configuration -->
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    
+    <!-- Sandbox escape for system-level window management -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+</dict>
+</plist>
