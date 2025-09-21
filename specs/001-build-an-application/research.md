@@ -1,4 +1,5 @@
 # Research: TilleRS Technical Decisions
+**Updated**: 2025-09-21 - Added keyboard hotkey modifier change analysis
 
 ## macOS Window Management APIs
 
@@ -130,3 +131,38 @@
 - Provide clear instructions for enabling permissions
 - Graceful operation with partial permissions where possible
 - Regular permission status monitoring
+
+## Keyboard Hotkey Modifier Change: Command → Option
+
+### Decision: Change default hotkey modifier from Command (⌘) to Option (⌥)
+**Rationale**: The Command key is heavily used by macOS system shortcuts and applications, leading to conflicts and accidental triggering. The Option key provides a cleaner namespace for window management shortcuts.
+
+**Benefits of Option key**:
+- **Reduced conflicts**: Option key has fewer system-wide shortcuts compared to Command
+- **Better UX**: Less likely to interfere with existing user workflows and muscle memory
+- **Accessibility**: Option key is easier to press in combination with other keys
+- **Consistency**: Many power-user tools (e.g., window managers like Rectangle) use Option as default
+
+**Alternatives considered**:
+- **Keep Command key**: Rejected due to extensive conflicts with Finder, Safari, text editors, and system shortcuts
+- **Use Control key**: Rejected due to conflicts with terminal applications and Unix shortcuts
+- **Use Function key**: Rejected due to hardware variability (not all keyboards have Fn key in same location)
+- **Use Shift key**: Rejected due to interference with text selection and case modification
+
+**Technical implementation**:
+- Update default key bindings in configuration templates
+- Maintain backward compatibility for users who have customized Command-based shortcuts
+- Provide migration path for existing configurations
+- Document the change clearly in release notes and user guides
+
+**Configuration flexibility**:
+- Allow users to customize modifier keys in configuration files
+- Support multiple modifier combinations (Option+Command, Option+Control, etc.)
+- Provide preset configurations for different user preferences
+- Enable per-workspace custom hotkey schemes
+
+**Migration strategy**:
+- Default new installations to Option key
+- Preserve existing user configurations during updates
+- Provide clear documentation about the change
+- Offer easy configuration option to revert to Command key if desired

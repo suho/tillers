@@ -1,4 +1,5 @@
 # Data Model: TilleRS Window Manager
+**Updated**: 2025-09-21 - Added keyboard modifier change from Command to Option
 
 ## Core Entities
 
@@ -104,12 +105,13 @@
 
 **Fields**:
 - `id`: Unique identifier (UUID)
-- `shortcut_combination`: Key combination (modifiers + key)
+- `shortcut_combination`: Key combination (modifiers + key) - **DEFAULT MODIFIER CHANGED FROM COMMAND TO OPTION**
 - `action_type`: Type of action (enum: SwitchWorkspace, MoveWindow, ResizeWindow, CreateWorkspace)
 - `target_id`: ID of target workspace/window (if applicable)
 - `parameters`: JSON blob for action-specific parameters
 - `enabled`: Boolean flag for shortcut activation
 - `global_scope`: Whether shortcut works globally or only when app is focused
+- `modifier_preference`: Default modifier key (Option ⌥ instead of Command ⌘)
 
 **Relationships**:
 - May reference Workspace for switch actions
@@ -119,6 +121,7 @@
 - Shortcut combination must be unique within scope
 - Action type must match target_id type
 - Parameters must be valid JSON
+- **KEYBOARD MODIFIER UPDATE**: Default shortcuts use Option (⌥) key instead of Command (⌘) to reduce conflicts with system shortcuts
 
 ### ApplicationProfile
 **Purpose**: Stores default behavior patterns for specific applications

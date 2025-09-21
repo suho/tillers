@@ -1,4 +1,5 @@
 # TilleRS Quickstart Guide & Test Scenarios
+**Updated**: 2025-09-21 - Changed default keyboard shortcuts from Command to Option key
 
 ## Installation and Setup
 
@@ -16,13 +17,13 @@
 ### First-Time Configuration
 1. **Create Default Workspace**
    - Open workspace configuration
-   - Create workspace named "Development" with shortcut `Cmd+1`
+   - Create workspace named "Development" with shortcut `Option+1` (changed from Cmd+1)
    - Assign "Two Column" tiling pattern
    - Save configuration
 
 2. **Test Basic Functionality**
    - Open 2-3 applications (e.g., Terminal, Browser, Text Editor)
-   - Switch to "Development" workspace using `Cmd+1`
+   - Switch to "Development" workspace using `Option+1` (changed from Cmd+1)
    - Verify windows arrange automatically in two-column layout
 
 ## User Acceptance Test Scenarios
@@ -32,12 +33,12 @@
 
 **Steps**:
 1. Launch TilleRS
-2. Create workspace "Project A" with shortcut `Cmd+1`
-3. Create workspace "Project B" with shortcut `Cmd+2`
+2. Create workspace "Project A" with shortcut `Option+1` (changed from Cmd+1)
+3. Create workspace "Project B" with shortcut `Option+2` (changed from Cmd+2) 
 4. Open VS Code, Terminal, and Safari
-5. Switch to "Project A" using `Cmd+1`
+5. Switch to "Project A" using `Option+1`
 6. Verify all windows arrange according to default tiling pattern
-7. Switch to "Project B" using `Cmd+2`
+7. Switch to "Project B" using `Option+2`
 8. Verify workspace transition is smooth and windows maintain positions
 
 **Expected Results**:
@@ -52,7 +53,7 @@
 **Prerequisites**: Two monitors connected
 
 **Steps**:
-1. Create workspace "Multi-Monitor" with shortcut `Cmd+3`
+1. Create workspace "Multi-Monitor" with shortcut `Option+3` (changed from Cmd+3)
 2. Configure different tiling patterns for each monitor
 3. Open 6 applications total
 4. Switch to "Multi-Monitor" workspace
@@ -72,7 +73,7 @@
 **Objective**: Verify custom rules for specific applications work correctly
 
 **Steps**:
-1. Create workspace "Design Work" with shortcut `Cmd+4`
+1. Create workspace "Design Work" with shortcut `Option+4` (changed from Cmd+4)
 2. Configure window rule: Figma → always fullscreen
 3. Configure window rule: Finder → always floating
 4. Configure window rule: Slack → fixed position in corner

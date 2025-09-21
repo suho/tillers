@@ -71,12 +71,9 @@ cargo bench
 - Use `NSString` conversions for string handling with Objective-C
 
 ## Recent Changes
-### Feature 001: TilleRS Core Application (2025-09-21)
+- 001-build-an-application: Added  + 
 - Added keyboard-first tiling window manager for macOS
 - Implemented workspace management with logical groupings
-- Created multi-monitor support with consistent layouts
-- Added Rust + Objective-C interop architecture
-- Performance targets: <200ms workspace switching, <100MB memory
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

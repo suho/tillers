@@ -5,7 +5,9 @@
       "Bash(.specify/scripts/bash/check-implementation-prerequisites.sh:*)",
       "Bash(cargo check:*)",
       "Bash(cargo run:*)",
-      "Bash(cargo test)"
+      "Bash(cargo test)",
+      "Bash(.specify/scripts/bash/setup-plan.sh:*)",
+      "Bash(.specify/scripts/bash/update-agent-context.sh:*)"
     ],
     "deny": [],
     "ask": []
