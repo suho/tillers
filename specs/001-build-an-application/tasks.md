@@ -109,10 +109,10 @@
 - [x] T042 [P] Unit tests for configuration parsing in tests/unit/test_config_parser.rs
 - [x] T043 [P] Performance benchmarks for workspace switching (<200ms) in benches/workspace_switching.rs
 - [x] T044 [P] Performance benchmarks for window positioning (<50ms) in benches/window_positioning.rs
-- [ ] T045 [P] Memory usage monitoring and leak detection in tests/performance/test_memory.rs
-- [ ] T046 Documentation generation with rustdoc for public APIs
-- [ ] T047 Create installation guide and user documentation detailing Option-key shortcut defaults and migration guidance
-- [ ] T048 Run complete quickstart manual testing scenarios
+- [x] T045 [P] Memory usage monitoring and leak detection in tests/performance/test_memory.rs
+- [x] T046 Documentation generation with rustdoc for public APIs
+- [x] T047 Create installation guide and user documentation detailing Option-key shortcut defaults and migration guidance
+- [x] T048 Run complete quickstart manual testing scenarios
 
 ## Dependencies
 - Setup (T001-T005) before everything

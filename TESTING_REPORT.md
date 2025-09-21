@@ -15,6 +15,17 @@
 - Performance targets achieved (sub-200ms workspace switching, sub-50ms window positioning)
 - Comprehensive CLI interface and system integration
 
+## Quickstart Traceability
+
+| Quickstart Scenario | Manual Outcome | Automated Coverage |
+|---------------------|----------------|--------------------|
+| Scenario 1 – Basic workspace creation & switching | ✅ Confirmed via walkthrough | `tests/integration/test_workspace_switching.rs` |
+| Scenario 2 – Multi-monitor management | ✅ Confirmed via walkthrough | `tests/integration/test_multi_monitor.rs` |
+| Scenario 3 – Application-specific window rules | ✅ Confirmed via walkthrough | `tests/integration/test_window_rules.rs` |
+| Scenario 4 – Keyboard-only navigation | ✅ Confirmed via walkthrough | `tests/integration/test_keyboard_navigation.rs` |
+| Scenario 5 – Performance under load | ✅ Confirmed via walkthrough | `benches/workspace_switching.rs`, `tests/performance/test_memory.rs` |
+| Scenario 6 – Error handling & recovery | ✅ Confirmed via walkthrough | `tests/integration/test_error_handling.rs`, `src/error_recovery/` |
+
 ## Test Results by Scenario
 
 ### ✅ Scenario 1: Basic Workspace Creation and Switching

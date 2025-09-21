@@ -91,6 +91,9 @@ tillers
 tillers --daemon
 ```
 
+For a step-by-step walkthrough (including Option-key migration guidance), see
+`docs/installation.md`.
+
 ## Usage
 
 ### Run the Demo
@@ -302,6 +305,18 @@ cargo fmt --all
 # Run linter
 cargo clippy -- -D warnings
 ```
+
+### API Documentation
+
+```bash
+# Build public API docs without dependency pages
+RUSTC_VERSION="$(rustc --version)" cargo doc --no-deps
+
+# Open the rendered output
+open target/doc/tillers/index.html
+```
+
+See `docs/rustdoc.md` for additional tips (e.g., docs.rs flags, publishing guidance).
 
 ## Architecture
 
