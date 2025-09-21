@@ -35,8 +35,9 @@ pub enum Key {
     Escape,
     Backspace,
     Delete,
-    /// Custom key code
-    KeyCode(u16),
+    /// Custom scan code
+    #[serde(rename = "KeyCode")]
+    ScanCode(u16),
 }
 
 /// Arrow key directions
@@ -434,7 +435,7 @@ fn key_token(key: &Key) -> String {
         Key::Escape => "esc".to_string(),
         Key::Backspace => "backspace".to_string(),
         Key::Delete => "delete".to_string(),
-        Key::KeyCode(code) => format!("key{}", code),
+        Key::ScanCode(code) => format!("key{}", code),
     }
 }
 
@@ -443,11 +444,11 @@ fn parse_key_token(token: &str) -> Option<Key> {
 
     if let Some(stripped) = lower.strip_prefix("key") {
         if let Ok(code) = stripped.parse::<u16>() {
-            return Some(Key::KeyCode(code));
+            return Some(Key::ScanCode(code));
         }
     }
 
-    if let Some(number) = lower.parse::<u8>().ok() {
+    if let Ok(number) = lower.parse::<u8>() {
         if number <= 9 {
             return Some(Key::Number(number));
         }
@@ -462,7 +463,7 @@ fn parse_key_token(token: &str) -> Option<Key> {
 
     if let Some(stripped) = lower.strip_prefix('f') {
         if let Ok(func) = stripped.parse::<u8>() {
-            if func >= 1 && func <= 24 {
+            if (1..=24).contains(&func) {
                 return Some(Key::Function(func));
             }
         }
@@ -662,7 +663,7 @@ impl fmt::Display for ShortcutCombination {
             Key::Escape => "Esc".to_string(),
             Key::Backspace => "⌫".to_string(),
             Key::Delete => "⌦".to_string(),
-            Key::KeyCode(code) => format!("Key{}", code),
+            Key::ScanCode(code) => format!("Key{}", code),
         };
 
         write!(f, "{}{}", modifier_strs.join(""), key_str)

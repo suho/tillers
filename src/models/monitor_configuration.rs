@@ -67,6 +67,7 @@ pub struct MonitorConfiguration {
 
 impl MonitorConfiguration {
     /// Create a new monitor configuration with validation
+    #[allow(clippy::too_many_arguments)] // Monitor definitions need explicit fields for serialization
     pub fn new(
         workspace_id: Uuid,
         monitor_identifier: String,

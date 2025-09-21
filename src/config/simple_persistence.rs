@@ -7,11 +7,11 @@ use uuid::Uuid;
 #[derive(Error, Debug)]
 pub enum SimplePersistenceError {
     #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[error("Serialization error: {0}")]
-    SerializationError(#[from] toml::ser::Error),
+    Serialization(#[from] toml::ser::Error),
     #[error("Parse error: {0}")]
-    ParseError(#[from] toml::de::Error),
+    Parse(#[from] toml::de::Error),
 }
 
 #[derive(Debug, Clone)]

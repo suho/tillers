@@ -220,23 +220,23 @@ impl ApplicationProfile {
     ) -> bool {
         match rule.strategy {
             WindowDetectionStrategy::BundleId => {
-                bundle_id.map_or(false, |id| id == rule.primary_identifier)
+                bundle_id.is_some_and(|id| id == rule.primary_identifier)
             }
             WindowDetectionStrategy::ProcessName => {
-                process_name.map_or(false, |name| name == rule.primary_identifier)
+                process_name.is_some_and(|name| name == rule.primary_identifier)
             }
             WindowDetectionStrategy::WindowClass => {
                 // Window class matching would need additional system info
                 // For now, fall back to bundle ID
-                bundle_id.map_or(false, |id| id == rule.primary_identifier)
+                bundle_id.is_some_and(|id| id == rule.primary_identifier)
             }
             WindowDetectionStrategy::Combined => {
-                let primary_match = bundle_id.map_or(false, |id| id == rule.primary_identifier)
-                    || process_name.map_or(false, |name| name == rule.primary_identifier);
+                let primary_match = bundle_id.is_some_and(|id| id == rule.primary_identifier)
+                    || process_name.is_some_and(|name| name == rule.primary_identifier);
 
                 let secondary_match = rule.secondary_identifiers.iter().any(|identifier| {
-                    bundle_id.map_or(false, |id| id == identifier)
-                        || process_name.map_or(false, |name| name == identifier)
+                    bundle_id.is_some_and(|id| id == identifier)
+                        || process_name.is_some_and(|name| name == identifier)
                 });
 
                 primary_match || secondary_match
@@ -251,7 +251,7 @@ impl ApplicationProfile {
             if rule.enabled {
                 if let CustomAction::ForcePositioning(positioning) = &rule.action {
                     // Simple condition matching for now
-                    if window_title.map_or(false, |title| title.contains(&rule.condition)) {
+                    if window_title.is_some_and(|title| title.contains(&rule.condition)) {
                         return positioning.clone();
                     }
                 }

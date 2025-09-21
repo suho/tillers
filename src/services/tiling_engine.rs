@@ -24,6 +24,12 @@ pub struct TilingEngine {
     metrics: Arc<RwLock<TilingEngineMetrics>>,
 }
 
+impl Default for TilingEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TilingEngine {
     pub fn new() -> Self {
         Self {

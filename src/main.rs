@@ -300,8 +300,7 @@ impl TilleRSApp {
         info!("Loading initial configuration...");
 
         // Load configuration with error recovery
-        let _config = self
-            .error_recovery
+        self.error_recovery
             .recover_and_retry("load_config", || {
                 // In a real implementation, this would load the actual configuration
                 Ok(())

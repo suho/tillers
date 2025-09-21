@@ -63,6 +63,7 @@ pub struct WindowRule {
 
 impl WindowRule {
     /// Create a new window rule with validation
+    #[allow(clippy::too_many_arguments)] // Window rules surface core matching criteria directly
     pub fn new(
         workspace_id: Uuid,
         application_identifier: String,

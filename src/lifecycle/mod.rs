@@ -143,6 +143,7 @@ pub struct LifecycleManager {
 
 impl LifecycleManager {
     /// Create a new lifecycle manager
+    #[allow(clippy::too_many_arguments)] // Injecting dependencies explicitly keeps wiring transparent
     pub fn new(
         config: LifecycleConfig,
         operation_mode: OperationMode,

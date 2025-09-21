@@ -43,12 +43,12 @@ impl ConfigValidator {
     pub fn new() -> Result<Self, ConfigParseError> {
         let keyboard_shortcut_regex =
             Regex::new(r"^(cmd|ctrl|opt|shift)(\+(cmd|ctrl|opt|shift))*\+[a-zA-Z0-9F1-F12]+$")
-                .map_err(|e| ConfigParseError::ValidationError {
+                .map_err(|e| ConfigParseError::Validation {
                     message: format!("Failed to compile keyboard shortcut regex: {}", e),
                 })?;
 
         let bundle_id_regex = Regex::new(r"^[a-zA-Z0-9]+([\.-][a-zA-Z0-9]+)*$").map_err(|e| {
-            ConfigParseError::ValidationError {
+            ConfigParseError::Validation {
                 message: format!("Failed to compile bundle ID regex: {}", e),
             }
         })?;

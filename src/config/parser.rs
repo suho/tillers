@@ -17,13 +17,13 @@ use uuid::Uuid;
 #[derive(Error, Debug)]
 pub enum ConfigParseError {
     #[error("File IO error: {0}")]
-    IoError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[error("TOML parsing error: {0}")]
-    TomlError(#[from] toml::de::Error),
+    Toml(#[from] toml::de::Error),
     #[error("Validation error: {message}")]
-    ValidationError { message: String },
+    Validation { message: String },
     #[error("Migration error: {message}")]
-    MigrationError { message: String },
+    Migration { message: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -151,13 +151,13 @@ impl ConfigParser {
 
         for workspace in workspaces {
             if !names.insert(&workspace.name) {
-                return Err(ConfigParseError::ValidationError {
+                return Err(ConfigParseError::Validation {
                     message: format!("Duplicate workspace name: {}", workspace.name),
                 });
             }
 
             if !shortcuts.insert(&workspace.keyboard_shortcut) {
-                return Err(ConfigParseError::ValidationError {
+                return Err(ConfigParseError::Validation {
                     message: format!(
                         "Duplicate keyboard shortcut: {}",
                         workspace.keyboard_shortcut
@@ -166,13 +166,13 @@ impl ConfigParser {
             }
 
             if workspace.name.is_empty() {
-                return Err(ConfigParseError::ValidationError {
+                return Err(ConfigParseError::Validation {
                     message: "Workspace name cannot be empty".to_string(),
                 });
             }
 
             if workspace.name.len() > 100 {
-                return Err(ConfigParseError::ValidationError {
+                return Err(ConfigParseError::Validation {
                     message: format!(
                         "Workspace name too long: {} (max 100 chars)",
                         workspace.name
@@ -187,7 +187,7 @@ impl ConfigParser {
     fn validate_patterns(&self, patterns: &[TilingPattern]) -> Result<(), ConfigParseError> {
         for pattern in patterns {
             if pattern.main_area_ratio < 0.1 || pattern.main_area_ratio > 0.9 {
-                return Err(ConfigParseError::ValidationError {
+                return Err(ConfigParseError::Validation {
                     message: format!(
                         "Main area ratio {} must be between 0.1 and 0.9",
                         pattern.main_area_ratio
@@ -196,7 +196,7 @@ impl ConfigParser {
             }
 
             if pattern.max_windows == 0 {
-                return Err(ConfigParseError::ValidationError {
+                return Err(ConfigParseError::Validation {
                     message: "Max windows must be positive".to_string(),
                 });
             }
@@ -213,7 +213,7 @@ impl ConfigParser {
 
         for mapping in mappings {
             if let Err(err) = mapping.shortcut_combination.validate() {
-                return Err(ConfigParseError::ValidationError {
+                return Err(ConfigParseError::Validation {
                     message: format!(
                         "Invalid keyboard shortcut '{}': {}",
                         mapping.shortcut_combination.to_config_string(),
@@ -224,7 +224,7 @@ impl ConfigParser {
 
             let signature = mapping.shortcut_combination.to_config_string();
             if !combinations.insert(signature.clone()) {
-                return Err(ConfigParseError::ValidationError {
+                return Err(ConfigParseError::Validation {
                     message: format!("Duplicate shortcut combination: {}", signature),
                 });
             }
@@ -249,7 +249,7 @@ impl ConfigParser {
 
         for profile in profiles {
             if !bundle_ids.insert(&profile.bundle_identifier) {
-                return Err(ConfigParseError::ValidationError {
+                return Err(ConfigParseError::Validation {
                     message: format!("Duplicate bundle identifier: {}", profile.bundle_identifier),
                 });
             }
@@ -264,7 +264,7 @@ impl ConfigParser {
     ) -> Result<(), ConfigParseError> {
         for config in configs {
             if config.scale_factor <= 0.0 {
-                return Err(ConfigParseError::ValidationError {
+                return Err(ConfigParseError::Validation {
                     message: "Scale factor must be positive".to_string(),
                 });
             }
@@ -281,7 +281,7 @@ impl ConfigParser {
 
         for workspace in &config.workspaces {
             if !pattern_ids.contains(&workspace.tiling_pattern_id) {
-                return Err(ConfigParseError::ValidationError {
+                return Err(ConfigParseError::Validation {
                     message: format!(
                         "Workspace '{}' references non-existent tiling pattern: {}",
                         workspace.name, workspace.tiling_pattern_id
@@ -293,7 +293,7 @@ impl ConfigParser {
         for mapping in &config.keyboard_mappings {
             if let ActionParameters::WorkspaceId(target_id) = &mapping.parameters {
                 if !workspace_ids.contains(target_id) {
-                    return Err(ConfigParseError::ValidationError {
+                    return Err(ConfigParseError::Validation {
                         message: format!(
                             "Keyboard mapping '{}' references non-existent workspace: {}",
                             mapping.shortcut_combination.to_config_string(),
@@ -342,7 +342,7 @@ impl ConfigParser {
 
         for legacy in legacy_mappings {
             let mut combination = ShortcutCombination::from_str(&legacy.shortcut_combination)
-                .map_err(|e| ConfigParseError::MigrationError {
+                .map_err(|e| ConfigParseError::Migration {
                     message: format!(
                         "Invalid legacy shortcut '{}': {}",
                         legacy.shortcut_combination, e
@@ -369,7 +369,7 @@ impl ConfigParser {
                 legacy.global_scope,
                 description,
             )
-            .map_err(|e| ConfigParseError::MigrationError {
+            .map_err(|e| ConfigParseError::Migration {
                 message: format!(
                     "Failed to migrate legacy shortcut '{}': {}",
                     legacy.shortcut_combination, e

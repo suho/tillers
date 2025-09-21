@@ -338,7 +338,7 @@ impl PermissionChecker {
                     error!("Failed to open Accessibility privacy pane: {err}");
                 }
             }
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(not(target_os = "macos"))]
@@ -371,7 +371,7 @@ impl PermissionChecker {
                     .ok();
                 }
             }
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(not(target_os = "macos"))]
@@ -404,7 +404,7 @@ impl PermissionChecker {
                     .ok();
                 }
             }
-            return Ok(());
+            Ok(())
         }
 
         #[cfg(not(target_os = "macos"))]

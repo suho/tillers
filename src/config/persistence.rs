@@ -15,21 +15,21 @@ use uuid::Uuid;
 #[derive(Error, Debug)]
 pub enum PersistenceError {
     #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[error("Serialization error: {0}")]
-    SerializationError(#[from] toml::ser::Error),
+    Serialization(#[from] toml::ser::Error),
     #[error("Parse error: {0}")]
-    ParseError(#[from] ConfigParseError),
+    Parse(#[from] ConfigParseError),
     #[error("Validation failed: {validation_errors:?}")]
-    ValidationError {
+    Validation {
         validation_errors: Vec<ValidationResult>,
     },
     #[error("Backup error: {message}")]
-    BackupError { message: String },
+    Backup { message: String },
     #[error("Lock error: {message}")]
-    LockError { message: String },
+    Lock { message: String },
     #[error("Migration error: {message}")]
-    MigrationError { message: String },
+    Migration { message: String },
 }
 
 #[derive(Debug, Clone)]
@@ -75,7 +75,7 @@ pub struct ConfigPersistence {
 impl ConfigPersistence {
     pub fn new(config: PersistenceConfig) -> Result<Self, PersistenceError> {
         let parser = ConfigParser::new();
-        let validator = ConfigValidator::new().map_err(|e| PersistenceError::ParseError(e))?;
+        let validator = ConfigValidator::new().map_err(PersistenceError::Parse)?;
 
         Ok(Self {
             config,
@@ -197,8 +197,7 @@ impl ConfigPersistence {
         }
 
         let content = self.read_file_with_lock(&file_path)?;
-        let rules: Vec<WindowRule> =
-            toml::from_str(&content).map_err(|e| ConfigParseError::TomlError(e))?;
+        let rules: Vec<WindowRule> = toml::from_str(&content).map_err(ConfigParseError::Toml)?;
         Ok(rules)
     }
 
@@ -289,8 +288,7 @@ impl ConfigPersistence {
 
     pub fn import_config(&mut self, import_path: &Path) -> Result<Vec<String>, PersistenceError> {
         let content = fs::read_to_string(import_path)?;
-        let config_file: ConfigFile =
-            toml::from_str(&content).map_err(|e| ConfigParseError::TomlError(e))?;
+        let config_file: ConfigFile = toml::from_str(&content).map_err(ConfigParseError::Toml)?;
 
         if self.config.enable_validation {
             self.validate_config(&config_file.config)?;
@@ -316,7 +314,7 @@ impl ConfigPersistence {
             .collect();
 
         if !errors.is_empty() {
-            return Err(PersistenceError::ValidationError {
+            return Err(PersistenceError::Validation {
                 validation_errors: errors,
             });
         }
@@ -388,7 +386,7 @@ impl ConfigPersistence {
         let filename = file_path
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| PersistenceError::BackupError {
+            .ok_or_else(|| PersistenceError::Backup {
                 message: "Invalid file name".to_string(),
             })?;
 
@@ -437,7 +435,7 @@ impl ConfigPersistence {
             let path = entry.path();
 
             if path.extension().and_then(|s| s.to_str()) == Some("backup") {
-                if let Some(metadata) = fs::metadata(&path).ok() {
+                if let Ok(metadata) = fs::metadata(&path) {
                     if let Ok(modified) = metadata.modified() {
                         backup_files.push((path, modified));
                     }

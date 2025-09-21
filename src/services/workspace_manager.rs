@@ -3,11 +3,13 @@ use crate::config::simple_persistence::{
 };
 use crate::models::{Workspace, WorkspaceCreateRequest};
 use crate::{Result, TilleRSError};
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
+
+type WorkspaceEventListener = Box<dyn Fn(WorkspaceEvent) + Send + Sync>;
 
 /// Events that can be triggered by workspace operations
 #[derive(Debug, Clone)]
@@ -61,7 +63,7 @@ pub struct WorkspaceManager {
     /// Currently active workspace ID
     active_workspace_id: Arc<RwLock<Option<Uuid>>>,
     /// Event listeners
-    event_listeners: Arc<Mutex<Vec<Box<dyn Fn(WorkspaceEvent) + Send + Sync>>>>,
+    event_listeners: Arc<Mutex<Vec<WorkspaceEventListener>>>,
     /// Configuration
     config: WorkspaceManagerConfig,
     /// Performance metrics
@@ -164,9 +166,7 @@ impl WorkspaceManager {
                 info!("Loaded {} workspaces from configuration", workspace_count);
                 Ok(())
             }
-            Err(SimplePersistenceError::IoError(ref e))
-                if e.kind() == std::io::ErrorKind::NotFound =>
-            {
+            Err(SimplePersistenceError::Io(ref e)) if e.kind() == std::io::ErrorKind::NotFound => {
                 // No configuration file exists yet, this is okay for first run
                 info!("No existing workspace configuration found, starting fresh");
                 Ok(())
@@ -370,8 +370,8 @@ impl WorkspaceManager {
 
         // Update workspace
         let mut workspaces = self.workspaces.write().await;
-        if workspaces.contains_key(&workspace_id) {
-            workspaces.insert(workspace_id, workspace.clone());
+        if let Entry::Occupied(mut existing) = workspaces.entry(workspace_id) {
+            existing.insert(workspace.clone());
         } else {
             return Err(TilleRSError::WorkspaceNotFound(workspace_id.to_string()).into());
         }

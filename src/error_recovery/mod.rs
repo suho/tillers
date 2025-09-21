@@ -89,9 +89,8 @@ struct CircuitBreakerState {
 
 #[derive(Debug, Clone, PartialEq)]
 enum CircuitState {
-    Closed,   // Normal operation
-    Open,     // Failing, blocking requests
-    HalfOpen, // Testing if service is back
+    Closed, // Normal operation
+    Open,   // Failing, blocking requests
 }
 
 /// Error recovery manager for TilleRS
@@ -428,7 +427,6 @@ impl ErrorRecoveryManager {
                         false
                     }
                 }
-                CircuitState::HalfOpen => false, // Allow one attempt
                 CircuitState::Closed => false,
             }
         } else {

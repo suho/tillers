@@ -267,8 +267,8 @@ async fn test_parse_invalid_toml() {
     assert!(result.is_err());
     
     match result.unwrap_err() {
-        ConfigParseError::TomlError(_) => (),
-        other => panic!("Expected TomlError, got {:?}", other),
+        ConfigParseError::Toml(_) => (),
+        other => panic!("Expected Toml, got {:?}", other),
     }
 }
 
@@ -282,7 +282,7 @@ async fn test_parse_invalid_data() {
     
     // Should be either a TOML parsing error or validation error
     assert!(matches!(result.unwrap_err(), 
-        ConfigParseError::TomlError(_) | ConfigParseError::ValidationError { .. }));
+        ConfigParseError::Toml(_) | ConfigParseError::Validation { .. }));
 }
 
 #[tokio::test]
@@ -293,8 +293,8 @@ async fn test_parse_nonexistent_file() {
     assert!(result.is_err());
     
     match result.unwrap_err() {
-        ConfigParseError::IoError(_) => (),
-        other => panic!("Expected IoError, got {:?}", other),
+        ConfigParseError::Io(_) => (),
+        other => panic!("Expected Io, got {:?}", other),
     }
 }
 

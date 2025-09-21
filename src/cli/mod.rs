@@ -345,23 +345,21 @@ impl TilleRSCliExecutor {
 
                 if self.json_output {
                     println!("{}", serde_json::to_string_pretty(&workspaces)?);
+                } else if workspaces.is_empty() {
+                    println!("No workspaces found.");
                 } else {
-                    if workspaces.is_empty() {
-                        println!("No workspaces found.");
-                    } else {
-                        println!("Workspaces:");
-                        for workspace in workspaces {
-                            println!(
-                                "  {} - {} ({})",
-                                workspace.id,
-                                workspace.name,
-                                if workspace.is_active() {
-                                    "active"
-                                } else {
-                                    "inactive"
-                                }
-                            );
-                        }
+                    println!("Workspaces:");
+                    for workspace in workspaces {
+                        println!(
+                            "  {} - {} ({})",
+                            workspace.id,
+                            workspace.name,
+                            if workspace.is_active() {
+                                "active"
+                            } else {
+                                "inactive"
+                            }
+                        );
                     }
                 }
             }

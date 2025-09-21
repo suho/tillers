@@ -389,7 +389,7 @@ impl WorkspaceOrchestrator {
 
         let request = WorkspaceCreateRequest {
             name: name.to_string(),
-            description: Some(format!("Workspace created via keyboard shortcut")),
+            description: Some("Workspace created via keyboard shortcut".to_string()),
             keyboard_shortcut: shortcut,
             tiling_pattern_id: None, // Use default
             auto_arrange: Some(true),
@@ -397,11 +397,7 @@ impl WorkspaceOrchestrator {
 
         // Get a default pattern ID (simplified - in real implementation would come from config)
         let patterns = self.patterns.read().await;
-        let default_pattern_id = patterns
-            .keys()
-            .next()
-            .copied()
-            .unwrap_or_else(|| Uuid::new_v4());
+        let default_pattern_id = patterns.keys().next().copied().unwrap_or_else(Uuid::new_v4);
         drop(patterns);
 
         let workspace_id = self
