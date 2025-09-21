@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(.specify/scripts/bash/check-task-prerequisites.sh:*)"
+      "Bash(.specify/scripts/bash/check-task-prerequisites.sh:*)",
+      "Bash(.specify/scripts/bash/check-implementation-prerequisites.sh:*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo run:*)",
+      "Bash(cargo test)"
     ],
     "deny": [],
     "ask": []

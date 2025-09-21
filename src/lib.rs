@@ -9,9 +9,8 @@ pub mod macos;
 pub mod models;
 pub mod services;
 
-// TODO: Re-enable when modules have content
-// pub use models::*;
-// pub use services::*;
+pub use models::*;
+pub use services::*;
 
 /// Result type alias for TilleRS operations
 pub type Result<T> = anyhow::Result<T>;

@@ -1,3 +1,5 @@
 //! Core services for TilleRS window manager
 
-// TODO: Service files will be created in Phase 3.3
+pub mod workspace_manager;
+
+pub use workspace_manager::*;

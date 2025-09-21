@@ -68,14 +68,14 @@
 
 ### Data Models
 - [x] T015 [P] Workspace model with validation and serialization in src/models/workspace.rs
-- [ ] T016 [P] TilingPattern model with layout algorithms in src/models/tiling_pattern.rs
-- [ ] T017 [P] WindowRule model for application-specific behavior in src/models/window_rule.rs
-- [ ] T018 [P] MonitorConfiguration model for multi-display support in src/models/monitor_configuration.rs
-- [ ] T019 [P] KeyboardMapping model for shortcut management in src/models/keyboard_mapping.rs
-- [ ] T020 [P] ApplicationProfile model for app compatibility in src/models/application_profile.rs
+- [x] T016 [P] TilingPattern model with layout algorithms in src/models/tiling_pattern.rs
+- [x] T017 [P] WindowRule model for application-specific behavior in src/models/window_rule.rs
+- [x] T018 [P] MonitorConfiguration model for multi-display support in src/models/monitor_configuration.rs
+- [x] T019 [P] KeyboardMapping model for shortcut management in src/models/keyboard_mapping.rs
+- [x] T020 [P] ApplicationProfile model for app compatibility in src/models/application_profile.rs
 
 ### Core Services
-- [ ] T021 WorkspaceManager service for workspace CRUD and switching in src/services/workspace_manager.rs
+- [x] T021 WorkspaceManager service for workspace CRUD and switching in src/services/workspace_manager.rs
 - [ ] T022 WindowManager service for macOS window manipulation via Accessibility APIs in src/services/window_manager.rs
 - [ ] T023 KeyboardHandler service for global hotkey registration and event handling in src/services/keyboard_handler.rs
 - [ ] T024 TilingEngine service for window layout calculation and positioning in src/services/tiling_engine.rs
