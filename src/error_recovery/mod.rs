@@ -3,13 +3,13 @@
 //! This module provides comprehensive error recovery strategies for macOS API failures,
 //! permission issues, and system-level problems that can occur during window management.
 
-use crate::{Result, TilleRSError};
 use crate::permissions::{PermissionChecker, PermissionType};
+use crate::{Result, TilleRSError};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 /// Configuration for error recovery behavior
 #[derive(Debug, Clone)]
@@ -68,22 +68,13 @@ pub enum RecoverableError {
 #[derive(Debug, Clone)]
 pub enum RecoveryStrategy {
     /// Retry with exponential backoff
-    RetryWithBackoff {
-        attempts: usize,
-        delay: Duration,
-    },
+    RetryWithBackoff { attempts: usize, delay: Duration },
     /// Request missing permissions
-    RequestPermissions {
-        permissions: Vec<PermissionType>,
-    },
+    RequestPermissions { permissions: Vec<PermissionType> },
     /// Wait and retry once
-    WaitAndRetry {
-        wait_time: Duration,
-    },
+    WaitAndRetry { wait_time: Duration },
     /// Circuit breaker - temporarily disable functionality
-    CircuitBreaker {
-        until: Instant,
-    },
+    CircuitBreaker { until: Instant },
     /// No recovery possible
     NoRecovery,
 }
@@ -129,9 +120,11 @@ impl ErrorRecoveryManager {
     {
         // Check circuit breaker state
         if self.is_circuit_open(operation_name).await {
-            return Err(TilleRSError::MacOSAPIError(
-                format!("Circuit breaker open for {}", operation_name)
-            ).into());
+            return Err(TilleRSError::MacOSAPIError(format!(
+                "Circuit breaker open for {}",
+                operation_name
+            ))
+            .into());
         }
 
         let mut attempt = 0;
@@ -139,9 +132,7 @@ impl ErrorRecoveryManager {
 
         while attempt <= self.config.max_retries {
             // Add timeout to the operation
-            let result = tokio::time::timeout(self.config.api_timeout, async {
-                operation()
-            }).await;
+            let result = tokio::time::timeout(self.config.api_timeout, async { operation() }).await;
 
             match result {
                 Ok(Ok(value)) => {
@@ -152,16 +143,21 @@ impl ErrorRecoveryManager {
                 Ok(Err(error)) => {
                     last_error = Some(error);
                     let recoverable_error = self.classify_error(last_error.as_ref().unwrap()).await;
-                    
+
                     if let Some(recoverable) = recoverable_error {
-                        let strategy = self.determine_recovery_strategy(&recoverable, attempt).await;
-                        
+                        let strategy = self
+                            .determine_recovery_strategy(&recoverable, attempt)
+                            .await;
+
                         match strategy {
                             RecoveryStrategy::RetryWithBackoff { delay, .. } => {
                                 if attempt < self.config.max_retries {
                                     warn!(
                                         "Operation {} failed (attempt {}), retrying in {:?}: {:?}",
-                                        operation_name, attempt + 1, delay, recoverable
+                                        operation_name,
+                                        attempt + 1,
+                                        delay,
+                                        recoverable
                                     );
                                     tokio::time::sleep(delay).await;
                                     attempt += 1;
@@ -185,9 +181,11 @@ impl ErrorRecoveryManager {
                             }
                             RecoveryStrategy::CircuitBreaker { until } => {
                                 self.open_circuit_breaker(operation_name, until).await;
-                                return Err(TilleRSError::MacOSAPIError(
-                                    format!("Circuit breaker activated for {}", operation_name)
-                                ).into());
+                                return Err(TilleRSError::MacOSAPIError(format!(
+                                    "Circuit breaker activated for {}",
+                                    operation_name
+                                ))
+                                .into());
                             }
                             RecoveryStrategy::NoRecovery => {
                                 break;
@@ -196,10 +194,18 @@ impl ErrorRecoveryManager {
                     }
                 }
                 Err(_timeout) => {
-                    warn!("Operation {} timed out (attempt {})", operation_name, attempt + 1);
-                    last_error = Some(TilleRSError::MacOSAPIError(
-                        format!("Operation {} timed out", operation_name)
-                    ).into());
+                    warn!(
+                        "Operation {} timed out (attempt {})",
+                        operation_name,
+                        attempt + 1
+                    );
+                    last_error = Some(
+                        TilleRSError::MacOSAPIError(format!(
+                            "Operation {} timed out",
+                            operation_name
+                        ))
+                        .into(),
+                    );
                 }
             }
 
@@ -215,18 +221,24 @@ impl ErrorRecoveryManager {
         }
 
         // All retries exhausted
-        error!("Operation {} failed after {} attempts", operation_name, self.config.max_retries + 1);
+        error!(
+            "Operation {} failed after {} attempts",
+            operation_name,
+            self.config.max_retries + 1
+        );
         Err(last_error.unwrap_or_else(|| {
-            TilleRSError::MacOSAPIError(
-                format!("Operation {} failed after all retries", operation_name)
-            ).into()
+            TilleRSError::MacOSAPIError(format!(
+                "Operation {} failed after all retries",
+                operation_name
+            ))
+            .into()
         }))
     }
 
     /// Check and recover permissions if needed
     pub async fn check_and_recover_permissions(&self) -> Result<bool> {
         let mut last_check = self.last_permission_check.write().await;
-        
+
         // Check if we need to refresh permission status
         let should_check = match *last_check {
             Some(last) => last.elapsed() >= self.config.permission_check_interval,
@@ -242,17 +254,17 @@ impl ErrorRecoveryManager {
         drop(last_check);
 
         let mut checker = self.permission_checker.write().await;
-        
+
         // Check if all required permissions are granted
         let all_granted = checker.all_required_permissions_granted().await?;
-        
+
         if !all_granted {
             warn!("Required permissions not granted");
-            
+
             if self.config.auto_permission_recovery {
                 info!("Attempting automatic permission recovery");
                 checker.request_permissions_if_needed().await?;
-                
+
                 // Re-check after permission request
                 tokio::time::sleep(Duration::from_millis(500)).await;
                 return checker.all_required_permissions_granted().await;
@@ -266,21 +278,21 @@ impl ErrorRecoveryManager {
     pub async fn get_permission_recovery_instructions(&self) -> Result<Vec<String>> {
         let mut checker = self.permission_checker.write().await;
         let summary = checker.get_permission_summary().await?;
-        
+
         let mut instructions = Vec::new();
-        
+
         for permission_type in summary.missing_required_permissions() {
             let instruction = checker.get_permission_instructions(&permission_type);
             instructions.push(instruction);
         }
-        
+
         Ok(instructions)
     }
 
     /// Get current system health status
     pub async fn get_health_status(&self) -> Result<HealthStatus> {
         let permission_ok = self.check_and_recover_permissions().await?;
-        
+
         let circuit_breakers = self.circuit_breakers.read().await;
         let active_breakers: Vec<String> = circuit_breakers
             .iter()
@@ -303,13 +315,21 @@ impl ErrorRecoveryManager {
                 TilleRSError::PermissionDenied(msg) => {
                     // Try to map permission message to permission type
                     if msg.contains("Accessibility") || msg.contains("accessibility") {
-                        Some(RecoverableError::PermissionDenied(PermissionType::Accessibility))
+                        Some(RecoverableError::PermissionDenied(
+                            PermissionType::Accessibility,
+                        ))
                     } else if msg.contains("Input") || msg.contains("input") {
-                        Some(RecoverableError::PermissionDenied(PermissionType::InputMonitoring))
+                        Some(RecoverableError::PermissionDenied(
+                            PermissionType::InputMonitoring,
+                        ))
                     } else if msg.contains("Screen") || msg.contains("screen") {
-                        Some(RecoverableError::PermissionDenied(PermissionType::ScreenRecording))
+                        Some(RecoverableError::PermissionDenied(
+                            PermissionType::ScreenRecording,
+                        ))
                     } else {
-                        Some(RecoverableError::PermissionDenied(PermissionType::Accessibility))
+                        Some(RecoverableError::PermissionDenied(
+                            PermissionType::Accessibility,
+                        ))
                     }
                 }
                 TilleRSError::WindowNotFound(window_id) => {
@@ -333,7 +353,9 @@ impl ErrorRecoveryManager {
             // Generic error classification
             let error_msg = error.to_string().to_lowercase();
             if error_msg.contains("permission") {
-                Some(RecoverableError::PermissionDenied(PermissionType::Accessibility))
+                Some(RecoverableError::PermissionDenied(
+                    PermissionType::Accessibility,
+                ))
             } else if error_msg.contains("timeout") {
                 Some(RecoverableError::ApiUnavailable)
             } else {
@@ -342,7 +364,11 @@ impl ErrorRecoveryManager {
         }
     }
 
-    async fn determine_recovery_strategy(&self, error: &RecoverableError, attempt: usize) -> RecoveryStrategy {
+    async fn determine_recovery_strategy(
+        &self,
+        error: &RecoverableError,
+        attempt: usize,
+    ) -> RecoveryStrategy {
         match error {
             RecoverableError::PermissionDenied(permission_type) => {
                 RecoveryStrategy::RequestPermissions {
@@ -361,33 +387,27 @@ impl ErrorRecoveryManager {
                     }
                 }
             }
-            RecoverableError::WindowNotFound(_) => {
-                RecoveryStrategy::WaitAndRetry {
-                    wait_time: Duration::from_millis(200),
-                }
-            }
-            RecoverableError::WorkspaceOperationFailed => {
-                RecoveryStrategy::RetryWithBackoff {
-                    attempts: attempt,
-                    delay: self.calculate_backoff_delay(attempt),
-                }
-            }
-            RecoverableError::SystemOverloaded => {
-                RecoveryStrategy::WaitAndRetry {
-                    wait_time: Duration::from_secs(1),
-                }
-            }
+            RecoverableError::WindowNotFound(_) => RecoveryStrategy::WaitAndRetry {
+                wait_time: Duration::from_millis(200),
+            },
+            RecoverableError::WorkspaceOperationFailed => RecoveryStrategy::RetryWithBackoff {
+                attempts: attempt,
+                delay: self.calculate_backoff_delay(attempt),
+            },
+            RecoverableError::SystemOverloaded => RecoveryStrategy::WaitAndRetry {
+                wait_time: Duration::from_secs(1),
+            },
         }
     }
 
     async fn recover_permissions(&self, permissions: &[PermissionType]) -> Result<()> {
         let checker = self.permission_checker.write().await;
-        
+
         for permission in permissions {
             info!("Requesting permission: {:?}", permission);
             checker.request_permission(permission.clone()).await?;
         }
-        
+
         Ok(())
     }
 
@@ -398,7 +418,7 @@ impl ErrorRecoveryManager {
 
     async fn is_circuit_open(&self, operation_name: &str) -> bool {
         let breakers = self.circuit_breakers.read().await;
-        
+
         if let Some(state) = breakers.get(operation_name) {
             match state.state {
                 CircuitState::Open => {
@@ -418,34 +438,37 @@ impl ErrorRecoveryManager {
 
     async fn record_failure(&self, operation_name: &str) {
         let mut breakers = self.circuit_breakers.write().await;
-        
-        let state = breakers.entry(operation_name.to_string()).or_insert_with(|| {
-            CircuitBreakerState {
+
+        let state = breakers
+            .entry(operation_name.to_string())
+            .or_insert_with(|| CircuitBreakerState {
                 failures: 0,
                 last_failure: None,
                 state: CircuitState::Closed,
-            }
-        });
+            });
 
         state.failures += 1;
         state.last_failure = Some(Instant::now());
 
         if state.failures >= self.config.circuit_breaker_threshold {
             state.state = CircuitState::Open;
-            warn!("Circuit breaker opened for {} after {} failures", operation_name, state.failures);
+            warn!(
+                "Circuit breaker opened for {} after {} failures",
+                operation_name, state.failures
+            );
         }
     }
 
     async fn open_circuit_breaker(&self, operation_name: &str, until: Instant) {
         let mut breakers = self.circuit_breakers.write().await;
-        
-        let state = breakers.entry(operation_name.to_string()).or_insert_with(|| {
-            CircuitBreakerState {
+
+        let state = breakers
+            .entry(operation_name.to_string())
+            .or_insert_with(|| CircuitBreakerState {
                 failures: 0,
                 last_failure: None,
                 state: CircuitState::Closed,
-            }
-        });
+            });
 
         state.state = CircuitState::Open;
         state.last_failure = Some(until);
@@ -453,10 +476,13 @@ impl ErrorRecoveryManager {
 
     async fn reset_circuit_breaker(&self, operation_name: &str) {
         let mut breakers = self.circuit_breakers.write().await;
-        
+
         if let Some(state) = breakers.get_mut(operation_name) {
             if state.failures > 0 {
-                debug!("Resetting circuit breaker for {} after successful operation", operation_name);
+                debug!(
+                    "Resetting circuit breaker for {} after successful operation",
+                    operation_name
+                );
                 state.failures = 0;
                 state.state = CircuitState::Closed;
                 state.last_failure = None;
@@ -485,7 +511,8 @@ impl HealthStatus {
     /// Get a human-readable description of the system status
     pub fn description(&self) -> String {
         if self.is_healthy() {
-            return "System healthy - all permissions granted, no circuit breakers active".to_string();
+            return "System healthy - all permissions granted, no circuit breakers active"
+                .to_string();
         }
 
         let mut issues: Vec<String> = Vec::new();
@@ -519,7 +546,7 @@ mod tests {
         let config = RecoveryConfig::default();
         let permission_checker = PermissionChecker::new(PermissionConfig::default());
         let manager = ErrorRecoveryManager::new(config, permission_checker);
-        
+
         let health = manager.get_health_status().await.unwrap();
         assert!(health.active_circuit_breakers.is_empty());
     }
@@ -529,10 +556,11 @@ mod tests {
         let config = RecoveryConfig::default();
         let permission_checker = PermissionChecker::new(PermissionConfig::default());
         let manager = ErrorRecoveryManager::new(config, permission_checker);
-        
-        let permission_error = TilleRSError::PermissionDenied("Accessibility permission required".to_string());
+
+        let permission_error =
+            TilleRSError::PermissionDenied("Accessibility permission required".to_string());
         let classified = manager.classify_error(&permission_error.into()).await;
-        
+
         match classified {
             Some(RecoverableError::PermissionDenied(PermissionType::Accessibility)) => (),
             _ => panic!("Expected accessibility permission error"),
@@ -544,11 +572,11 @@ mod tests {
         let config = RecoveryConfig::default();
         let permission_checker = PermissionChecker::new(PermissionConfig::default());
         let manager = ErrorRecoveryManager::new(config, permission_checker);
-        
+
         let delay1 = manager.calculate_backoff_delay(0);
         let delay2 = manager.calculate_backoff_delay(1);
         let delay3 = manager.calculate_backoff_delay(2);
-        
+
         assert!(delay2 > delay1);
         assert!(delay3 > delay2);
         assert!(delay3 <= manager.config.max_retry_delay);
@@ -561,16 +589,16 @@ mod tests {
             active_circuit_breakers: vec![],
             last_permission_check: Some(Instant::now()),
         };
-        
+
         assert!(healthy_status.is_healthy());
         assert!(healthy_status.description().contains("healthy"));
-        
+
         let unhealthy_status = HealthStatus {
             permissions_granted: false,
             active_circuit_breakers: vec!["window_manager".to_string()],
             last_permission_check: Some(Instant::now()),
         };
-        
+
         assert!(!unhealthy_status.is_healthy());
         assert!(unhealthy_status.description().contains("issues"));
     }

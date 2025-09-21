@@ -23,7 +23,7 @@ impl Default for SimplePersistenceConfig {
     fn default() -> Self {
         let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
         let config_dir = home_dir.join(".config").join("tillers");
-        
+
         Self { config_dir }
     }
 }
@@ -53,7 +53,7 @@ impl SimpleConfigPersistence {
 
     pub fn load_workspaces(&self) -> Result<Vec<Workspace>, SimplePersistenceError> {
         let file_path = self.config.config_dir.join("workspaces.toml");
-        
+
         if !file_path.exists() {
             return Ok(Vec::new());
         }
@@ -66,12 +66,12 @@ impl SimpleConfigPersistence {
     pub fn save_workspaces(&self, workspaces: &[Workspace]) -> Result<(), SimplePersistenceError> {
         let file_path = self.config.config_dir.join("workspaces.toml");
         let content = toml::to_string_pretty(&workspaces)?;
-        
+
         // Atomic write
         let temp_path = file_path.with_extension("tmp");
         fs::write(&temp_path, content)?;
         fs::rename(temp_path, file_path)?;
-        
+
         Ok(())
     }
 

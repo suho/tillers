@@ -1,11 +1,11 @@
-use crate::config::parser::{WorkspaceConfig, ConfigParseError};
+use crate::config::parser::{ConfigParseError, WorkspaceConfig};
 use crate::models::{
-    workspace::Workspace,
+    application_profile::ApplicationProfile,
+    keyboard_mapping::{ActionParameters, KeyboardMapping, ModifierKey, ShortcutCombination},
+    monitor_configuration::MonitorConfiguration,
     tiling_pattern::TilingPattern,
     window_rule::WindowRule,
-    keyboard_mapping::{KeyboardMapping, ShortcutCombination, ActionParameters, ModifierKey},
-    application_profile::ApplicationProfile,
-    monitor_configuration::MonitorConfiguration,
+    workspace::Workspace,
 };
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
@@ -41,15 +41,17 @@ pub struct ConfigValidator {
 
 impl ConfigValidator {
     pub fn new() -> Result<Self, ConfigParseError> {
-        let keyboard_shortcut_regex = Regex::new(r"^(cmd|ctrl|opt|shift)(\+(cmd|ctrl|opt|shift))*\+[a-zA-Z0-9F1-F12]+$")
-            .map_err(|e| ConfigParseError::ValidationError {
-                message: format!("Failed to compile keyboard shortcut regex: {}", e),
-            })?;
+        let keyboard_shortcut_regex =
+            Regex::new(r"^(cmd|ctrl|opt|shift)(\+(cmd|ctrl|opt|shift))*\+[a-zA-Z0-9F1-F12]+$")
+                .map_err(|e| ConfigParseError::ValidationError {
+                    message: format!("Failed to compile keyboard shortcut regex: {}", e),
+                })?;
 
-        let bundle_id_regex = Regex::new(r"^[a-zA-Z0-9]+([\.-][a-zA-Z0-9]+)*$")
-            .map_err(|e| ConfigParseError::ValidationError {
+        let bundle_id_regex = Regex::new(r"^[a-zA-Z0-9]+([\.-][a-zA-Z0-9]+)*$").map_err(|e| {
+            ConfigParseError::ValidationError {
                 message: format!("Failed to compile bundle ID regex: {}", e),
-            })?;
+            }
+        })?;
 
         Ok(Self {
             rules: Self::default_rules(),
@@ -83,18 +85,26 @@ impl ConfigValidator {
                 if existing_id != workspace.id {
                     results.push(ValidationResult {
                         rule: self.get_rule("duplicate_workspace_name").unwrap(),
-                        message: format!("Workspace name '{}' is used by multiple workspaces", workspace.name),
+                        message: format!(
+                            "Workspace name '{}' is used by multiple workspaces",
+                            workspace.name
+                        ),
                         entity_id: Some(workspace.id),
                         entity_type: "Workspace".to_string(),
                     });
                 }
             }
 
-            if let Some(existing_id) = shortcut_map.insert(&workspace.keyboard_shortcut, workspace.id) {
+            if let Some(existing_id) =
+                shortcut_map.insert(&workspace.keyboard_shortcut, workspace.id)
+            {
                 if existing_id != workspace.id {
                     results.push(ValidationResult {
                         rule: self.get_rule("duplicate_keyboard_shortcut").unwrap(),
-                        message: format!("Keyboard shortcut '{}' is used by multiple workspaces", workspace.keyboard_shortcut),
+                        message: format!(
+                            "Keyboard shortcut '{}' is used by multiple workspaces",
+                            workspace.keyboard_shortcut
+                        ),
                         entity_id: Some(workspace.id),
                         entity_type: "Workspace".to_string(),
                     });
@@ -119,10 +129,16 @@ impl ConfigValidator {
                 });
             }
 
-            if !self.keyboard_shortcut_regex.is_match(&workspace.keyboard_shortcut) {
+            if !self
+                .keyboard_shortcut_regex
+                .is_match(&workspace.keyboard_shortcut)
+            {
                 results.push(ValidationResult {
                     rule: self.get_rule("invalid_keyboard_shortcut").unwrap(),
-                    message: format!("Invalid keyboard shortcut format: '{}'", workspace.keyboard_shortcut),
+                    message: format!(
+                        "Invalid keyboard shortcut format: '{}'",
+                        workspace.keyboard_shortcut
+                    ),
                     entity_id: Some(workspace.id),
                     entity_type: "Workspace".to_string(),
                 });
@@ -159,7 +175,10 @@ impl ConfigValidator {
                 if existing_id != pattern.id {
                     results.push(ValidationResult {
                         rule: self.get_rule("duplicate_pattern_name").unwrap(),
-                        message: format!("Tiling pattern name '{}' is used by multiple patterns", pattern.name),
+                        message: format!(
+                            "Tiling pattern name '{}' is used by multiple patterns",
+                            pattern.name
+                        ),
                         entity_id: Some(pattern.id),
                         entity_type: "TilingPattern".to_string(),
                     });
@@ -169,7 +188,10 @@ impl ConfigValidator {
             if pattern.main_area_ratio < 0.1 || pattern.main_area_ratio > 0.9 {
                 results.push(ValidationResult {
                     rule: self.get_rule("invalid_main_area_ratio").unwrap(),
-                    message: format!("Main area ratio {} must be between 0.1 and 0.9", pattern.main_area_ratio),
+                    message: format!(
+                        "Main area ratio {} must be between 0.1 and 0.9",
+                        pattern.main_area_ratio
+                    ),
                     entity_id: Some(pattern.id),
                     entity_type: "TilingPattern".to_string(),
                 });
@@ -187,7 +209,10 @@ impl ConfigValidator {
             if pattern.max_windows > 50 {
                 results.push(ValidationResult {
                     rule: self.get_rule("high_max_windows").unwrap(),
-                    message: format!("High maximum windows count ({}) may impact performance", pattern.max_windows),
+                    message: format!(
+                        "High maximum windows count ({}) may impact performance",
+                        pattern.max_windows
+                    ),
                     entity_id: Some(pattern.id),
                     entity_type: "TilingPattern".to_string(),
                 });
@@ -227,7 +252,10 @@ impl ConfigValidator {
         results
     }
 
-    pub fn validate_keyboard_mappings(&self, mappings: &[KeyboardMapping]) -> Vec<ValidationResult> {
+    pub fn validate_keyboard_mappings(
+        &self,
+        mappings: &[KeyboardMapping],
+    ) -> Vec<ValidationResult> {
         let mut results = Vec::new();
         let mut shortcut_map: HashMap<String, Uuid> = HashMap::new();
 
@@ -251,11 +279,7 @@ impl ConfigValidator {
             if let Err(err) = mapping.shortcut_combination.validate() {
                 results.push(ValidationResult {
                     rule: self.get_rule("invalid_keyboard_shortcut").unwrap(),
-                    message: format!(
-                        "Invalid keyboard shortcut '{}': {}",
-                        signature,
-                        err
-                    ),
+                    message: format!("Invalid keyboard shortcut '{}': {}", signature, err),
                     entity_id: Some(mapping.id),
                     entity_type: "KeyboardMapping".to_string(),
                 });
@@ -287,7 +311,10 @@ impl ConfigValidator {
             if self.is_system_reserved_shortcut(&mapping.shortcut_combination) {
                 results.push(ValidationResult {
                     rule: self.get_rule("system_reserved_shortcut").unwrap(),
-                    message: format!("Shortcut '{}' may conflict with system shortcuts", signature),
+                    message: format!(
+                        "Shortcut '{}' may conflict with system shortcuts",
+                        signature
+                    ),
                     entity_id: Some(mapping.id),
                     entity_type: "KeyboardMapping".to_string(),
                 });
@@ -297,16 +324,23 @@ impl ConfigValidator {
         results
     }
 
-    pub fn validate_application_profiles(&self, profiles: &[ApplicationProfile]) -> Vec<ValidationResult> {
+    pub fn validate_application_profiles(
+        &self,
+        profiles: &[ApplicationProfile],
+    ) -> Vec<ValidationResult> {
         let mut results = Vec::new();
         let mut bundle_id_map = HashMap::new();
 
         for profile in profiles {
-            if let Some(existing_id) = bundle_id_map.insert(&profile.bundle_identifier, profile.id) {
+            if let Some(existing_id) = bundle_id_map.insert(&profile.bundle_identifier, profile.id)
+            {
                 if existing_id != profile.id {
                     results.push(ValidationResult {
                         rule: self.get_rule("duplicate_bundle_identifier").unwrap(),
-                        message: format!("Bundle identifier '{}' is used by multiple profiles", profile.bundle_identifier),
+                        message: format!(
+                            "Bundle identifier '{}' is used by multiple profiles",
+                            profile.bundle_identifier
+                        ),
                         entity_id: Some(profile.id),
                         entity_type: "ApplicationProfile".to_string(),
                     });
@@ -316,7 +350,10 @@ impl ConfigValidator {
             if !self.bundle_id_regex.is_match(&profile.bundle_identifier) {
                 results.push(ValidationResult {
                     rule: self.get_rule("invalid_bundle_identifier").unwrap(),
-                    message: format!("Invalid bundle identifier format: '{}'", profile.bundle_identifier),
+                    message: format!(
+                        "Invalid bundle identifier format: '{}'",
+                        profile.bundle_identifier
+                    ),
                     entity_id: Some(profile.id),
                     entity_type: "ApplicationProfile".to_string(),
                 });
@@ -335,7 +372,10 @@ impl ConfigValidator {
         results
     }
 
-    pub fn validate_monitor_configurations(&self, configs: &[MonitorConfiguration]) -> Vec<ValidationResult> {
+    pub fn validate_monitor_configurations(
+        &self,
+        configs: &[MonitorConfiguration],
+    ) -> Vec<ValidationResult> {
         let mut results = Vec::new();
 
         for config in configs {
@@ -351,7 +391,10 @@ impl ConfigValidator {
             if config.scale_factor < 0.5 || config.scale_factor > 3.0 {
                 results.push(ValidationResult {
                     rule: self.get_rule("unusual_scale_factor").unwrap(),
-                    message: format!("Unusual scale factor {}, typical range is 0.5-3.0", config.scale_factor),
+                    message: format!(
+                        "Unusual scale factor {}, typical range is 0.5-3.0",
+                        config.scale_factor
+                    ),
                     entity_id: Some(config.id),
                     entity_type: "MonitorConfiguration".to_string(),
                 });
@@ -372,7 +415,10 @@ impl ConfigValidator {
             if !pattern_ids.contains(&workspace.tiling_pattern_id) {
                 results.push(ValidationResult {
                     rule: self.get_rule("missing_tiling_pattern_reference").unwrap(),
-                    message: format!("Workspace '{}' references non-existent tiling pattern", workspace.name),
+                    message: format!(
+                        "Workspace '{}' references non-existent tiling pattern",
+                        workspace.name
+                    ),
                     entity_id: Some(workspace.id),
                     entity_type: "Workspace".to_string(),
                 });
@@ -392,8 +438,11 @@ impl ConfigValidator {
             if let Some(profile_id) = rule.application_profile_id {
                 if !profile_ids.contains(&profile_id) {
                     results.push(ValidationResult {
-                        rule: self.get_rule("missing_application_profile_reference").unwrap(),
-                        message: "Window rule references non-existent application profile".to_string(),
+                        rule: self
+                            .get_rule("missing_application_profile_reference")
+                            .unwrap(),
+                        message: "Window rule references non-existent application profile"
+                            .to_string(),
                         entity_id: Some(rule.id),
                         entity_type: "WindowRule".to_string(),
                     });
@@ -430,7 +479,8 @@ impl ConfigValidator {
             if !pattern_ids.contains(&monitor_config.primary_pattern_id) {
                 results.push(ValidationResult {
                     rule: self.get_rule("missing_tiling_pattern_reference").unwrap(),
-                    message: "Monitor configuration references non-existent primary tiling pattern".to_string(),
+                    message: "Monitor configuration references non-existent primary tiling pattern"
+                        .to_string(),
                     entity_id: Some(monitor_config.id),
                     entity_type: "MonitorConfiguration".to_string(),
                 });
@@ -440,7 +490,9 @@ impl ConfigValidator {
                 if !pattern_ids.contains(&secondary_id) {
                     results.push(ValidationResult {
                         rule: self.get_rule("missing_tiling_pattern_reference").unwrap(),
-                        message: "Monitor configuration references non-existent secondary tiling pattern".to_string(),
+                        message:
+                            "Monitor configuration references non-existent secondary tiling pattern"
+                                .to_string(),
                         entity_id: Some(monitor_config.id),
                         entity_type: "MonitorConfiguration".to_string(),
                     });
@@ -457,7 +509,10 @@ impl ConfigValidator {
         if config.workspaces.len() > 20 {
             results.push(ValidationResult {
                 rule: self.get_rule("high_workspace_count").unwrap(),
-                message: format!("High workspace count ({}) may impact performance", config.workspaces.len()),
+                message: format!(
+                    "High workspace count ({}) may impact performance",
+                    config.workspaces.len()
+                ),
                 entity_id: None,
                 entity_type: "Configuration".to_string(),
             });
@@ -466,7 +521,10 @@ impl ConfigValidator {
         if config.keyboard_mappings.len() > 100 {
             results.push(ValidationResult {
                 rule: self.get_rule("high_keyboard_mapping_count").unwrap(),
-                message: format!("High keyboard mapping count ({}) may impact performance", config.keyboard_mappings.len()),
+                message: format!(
+                    "High keyboard mapping count ({}) may impact performance",
+                    config.keyboard_mappings.len()
+                ),
                 entity_id: None,
                 entity_type: "Configuration".to_string(),
             });
@@ -476,7 +534,10 @@ impl ConfigValidator {
         if total_window_rules > 200 {
             results.push(ValidationResult {
                 rule: self.get_rule("high_window_rule_count").unwrap(),
-                message: format!("High window rule count ({}) may impact window detection performance", total_window_rules),
+                message: format!(
+                    "High window rule count ({}) may impact window detection performance",
+                    total_window_rules
+                ),
                 entity_id: None,
                 entity_type: "Configuration".to_string(),
             });
@@ -488,12 +549,31 @@ impl ConfigValidator {
     fn is_system_reserved_shortcut(&self, combination: &ShortcutCombination) -> bool {
         let signature = combination.to_config_string().to_lowercase();
         let reserved_shortcuts = [
-            "cmd+space", "cmd+tab", "cmd+q", "cmd+w", "cmd+a", "cmd+s", "cmd+d", "cmd+f",
-            "cmd+z", "cmd+x", "cmd+c", "cmd+v", "cmd+shift+z", "cmd+shift+4", "cmd+shift+3",
-            "ctrl+space", "ctrl+up", "ctrl+down", "ctrl+left", "ctrl+right",
+            "cmd+space",
+            "cmd+tab",
+            "cmd+q",
+            "cmd+w",
+            "cmd+a",
+            "cmd+s",
+            "cmd+d",
+            "cmd+f",
+            "cmd+z",
+            "cmd+x",
+            "cmd+c",
+            "cmd+v",
+            "cmd+shift+z",
+            "cmd+shift+4",
+            "cmd+shift+3",
+            "ctrl+space",
+            "ctrl+up",
+            "ctrl+down",
+            "ctrl+left",
+            "ctrl+right",
         ];
 
-        reserved_shortcuts.iter().any(|reserved| *reserved == signature)
+        reserved_shortcuts
+            .iter()
+            .any(|reserved| *reserved == signature)
     }
 
     fn get_rule(&self, name: &str) -> Option<ValidationRule> {
@@ -665,12 +745,12 @@ impl Default for ConfigValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::workspace::{Workspace, WorkspaceState};
-    use crate::models::tiling_pattern::{TilingPattern, LayoutAlgorithm, ResizeBehavior};
     use crate::models::keyboard_mapping::ShortcutCombination;
-    use uuid::Uuid;
+    use crate::models::tiling_pattern::{LayoutAlgorithm, ResizeBehavior, TilingPattern};
+    use crate::models::workspace::{Workspace, WorkspaceState};
     use chrono::Utc;
     use std::str::FromStr;
+    use uuid::Uuid;
 
     #[test]
     fn test_validate_workspace_duplicate_names() {
@@ -704,51 +784,57 @@ mod tests {
 
         let results = validator.validate_workspaces(&workspaces);
         assert!(!results.is_empty());
-        assert!(results.iter().any(|r| r.rule.name == "duplicate_workspace_name"));
+        assert!(results
+            .iter()
+            .any(|r| r.rule.name == "duplicate_workspace_name"));
     }
 
     #[test]
     fn test_validate_legacy_command_shortcuts() {
         let validator = ConfigValidator::new().unwrap();
-        let workspaces = vec![
-            Workspace {
-                id: Uuid::new_v4(),
-                name: "Test".to_string(),
-                description: None,
-                keyboard_shortcut: "cmd+1".to_string(),
-                tiling_pattern_id: Uuid::new_v4(),
-                monitor_assignments: std::collections::HashMap::new(),
-                auto_arrange: true,
-                created_at: Utc::now(),
-                last_used: Some(Utc::now()),
-                state: WorkspaceState::default(),
-            },
-        ];
+        let workspaces = vec![Workspace {
+            id: Uuid::new_v4(),
+            name: "Test".to_string(),
+            description: None,
+            keyboard_shortcut: "cmd+1".to_string(),
+            tiling_pattern_id: Uuid::new_v4(),
+            monitor_assignments: std::collections::HashMap::new(),
+            auto_arrange: true,
+            created_at: Utc::now(),
+            last_used: Some(Utc::now()),
+            state: WorkspaceState::default(),
+        }];
 
         let results = validator.validate_workspaces(&workspaces);
-        assert!(results.iter().any(|r| r.rule.name == "legacy_command_shortcut"));
-        assert!(results.iter().any(|r| r.rule.severity == ValidationSeverity::Warning));
+        assert!(results
+            .iter()
+            .any(|r| r.rule.name == "legacy_command_shortcut"));
+        assert!(results
+            .iter()
+            .any(|r| r.rule.severity == ValidationSeverity::Warning));
     }
 
     #[test]
     fn test_validate_tiling_pattern_main_area_ratio() {
         let validator = ConfigValidator::new().unwrap();
-        let patterns = vec![
-            TilingPattern {
-                id: Uuid::new_v4(),
-                name: "Invalid".to_string(),
-                layout_algorithm: LayoutAlgorithm::MasterStack,
-                main_area_ratio: 0.05, // Invalid: too small
-                gap_size: 10,
-                window_margin: 5,
-                max_windows: 10,
-                resize_behavior: ResizeBehavior::Shrink,
-            },
-        ];
+        let patterns = vec![TilingPattern {
+            id: Uuid::new_v4(),
+            name: "Invalid".to_string(),
+            layout_algorithm: LayoutAlgorithm::MasterStack,
+            main_area_ratio: 0.05, // Invalid: too small
+            gap_size: 10,
+            window_margin: 5,
+            max_windows: 10,
+            resize_behavior: ResizeBehavior::Shrink,
+        }];
 
         let results = validator.validate_tiling_patterns(&patterns);
-        assert!(results.iter().any(|r| r.rule.name == "invalid_main_area_ratio"));
-        assert!(results.iter().any(|r| r.rule.severity == ValidationSeverity::Error));
+        assert!(results
+            .iter()
+            .any(|r| r.rule.name == "invalid_main_area_ratio"));
+        assert!(results
+            .iter()
+            .any(|r| r.rule.severity == ValidationSeverity::Error));
     }
 
     #[test]

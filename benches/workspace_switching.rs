@@ -3,21 +3,21 @@
 //! Benchmarks the critical path of workspace switching to ensure
 //! sub-200ms response times for optimal user experience.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::time::Duration;
 use tillers::{
     models::{
+        tiling_pattern::{LayoutAlgorithm, ResizeBehavior, TilingPattern},
         workspace::{Workspace, WorkspaceKind},
-        tiling_pattern::{TilingPattern, LayoutAlgorithm, ResizeBehavior},
     },
     services::{
-        workspace_manager::{WorkspaceManager, WorkspaceManagerConfig},
         tiling_engine::TilingEngine,
+        workspace_manager::{WorkspaceManager, WorkspaceManagerConfig},
     },
     WorkspaceCreateRequest,
 };
 use tokio::runtime::Runtime;
 use uuid::Uuid;
-use std::time::Duration;
 
 /// Create a benchmark runtime for async operations
 fn create_runtime() -> Runtime {
@@ -54,7 +54,10 @@ fn create_test_pattern() -> TilingPattern {
 fn create_workspace_request(index: usize) -> WorkspaceCreateRequest {
     WorkspaceCreateRequest {
         name: format!("Benchmark Workspace {}", index),
-        description: Some(format!("Benchmark workspace for performance testing {}", index)),
+        description: Some(format!(
+            "Benchmark workspace for performance testing {}",
+            index
+        )),
         keyboard_shortcut: format!("opt+{}", (index % 9) + 1),
         tiling_pattern_id: Some(Uuid::new_v4()),
         auto_arrange: Some(true),
@@ -64,13 +67,13 @@ fn create_workspace_request(index: usize) -> WorkspaceCreateRequest {
 /// Benchmark workspace creation performance
 fn bench_workspace_creation(c: &mut Criterion) {
     let rt = create_runtime();
-    
+
     c.bench_function("workspace_creation", |b| {
         b.to_async(&rt).iter(|| async {
             let manager = create_workspace_manager();
             let pattern = create_test_pattern();
             let request = create_workspace_request(1);
-            
+
             black_box(manager.create_workspace(request, pattern.id).await)
         });
     });
@@ -79,10 +82,10 @@ fn bench_workspace_creation(c: &mut Criterion) {
 /// Benchmark workspace switching with varying numbers of existing workspaces
 fn bench_workspace_switching(c: &mut Criterion) {
     let rt = create_runtime();
-    
+
     // Test with different numbers of existing workspaces
     let workspace_counts = vec![1, 5, 10, 25, 50];
-    
+
     for count in workspace_counts {
         c.bench_with_input(
             BenchmarkId::new("workspace_switching", count),
@@ -91,7 +94,7 @@ fn bench_workspace_switching(c: &mut Criterion) {
                 b.to_async(&rt).iter(|| async {
                     let manager = create_workspace_manager();
                     let pattern = create_test_pattern();
-                    
+
                     // Create workspaces
                     let mut workspace_ids = Vec::new();
                     for i in 0..workspace_count {
@@ -99,7 +102,7 @@ fn bench_workspace_switching(c: &mut Criterion) {
                         let id = manager.create_workspace(request, pattern.id).await.unwrap();
                         workspace_ids.push(id);
                     }
-                    
+
                     // Benchmark switching to the last workspace
                     let target_id = workspace_ids.last().unwrap();
                     black_box(manager.switch_to_workspace(*target_id).await)
@@ -112,9 +115,9 @@ fn bench_workspace_switching(c: &mut Criterion) {
 /// Benchmark workspace listing performance
 fn bench_workspace_listing(c: &mut Criterion) {
     let rt = create_runtime();
-    
+
     let workspace_counts = vec![10, 25, 50, 100];
-    
+
     for count in workspace_counts {
         c.bench_with_input(
             BenchmarkId::new("workspace_listing", count),
@@ -126,19 +129,18 @@ fn bench_workspace_listing(c: &mut Criterion) {
                         rt.block_on(async {
                             let manager = create_workspace_manager();
                             let pattern = create_test_pattern();
-                            
+
                             for i in 0..workspace_count {
                                 let request = create_workspace_request(i);
-                                let _ = manager.create_workspace(request, pattern.id).await.unwrap();
+                                let _ =
+                                    manager.create_workspace(request, pattern.id).await.unwrap();
                             }
-                            
+
                             manager
                         })
                     },
                     // Benchmark: list workspaces
-                    |manager| async move {
-                        black_box(manager.list_workspaces().await)
-                    },
+                    |manager| async move { black_box(manager.list_workspaces().await) },
                 );
             },
         );
@@ -148,7 +150,7 @@ fn bench_workspace_listing(c: &mut Criterion) {
 /// Benchmark workspace search by name
 fn bench_workspace_search(c: &mut Criterion) {
     let rt = create_runtime();
-    
+
     c.bench_function("workspace_search", |b| {
         b.to_async(&rt).iter_with_setup(
             // Setup: create 50 workspaces with varied names
@@ -156,12 +158,12 @@ fn bench_workspace_search(c: &mut Criterion) {
                 rt.block_on(async {
                     let manager = create_workspace_manager();
                     let pattern = create_test_pattern();
-                    
+
                     let names = vec![
                         "Development", "Testing", "Production", "Staging", "Research",
                         "Documentation", "Design", "Analysis", "Review", "Deployment"
                     ];
-                    
+
                     for i in 0..50 {
                         let name = format!("{} {}", names[i % names.len()], i / names.len());
                         let request = WorkspaceCreateRequest {
@@ -173,7 +175,7 @@ fn bench_workspace_search(c: &mut Criterion) {
                         };
                         let _ = manager.create_workspace(request, pattern.id).await.unwrap();
                     }
-                    
+
                     manager
                 })
             },
@@ -188,7 +190,7 @@ fn bench_workspace_search(c: &mut Criterion) {
 /// Benchmark workspace deletion
 fn bench_workspace_deletion(c: &mut Criterion) {
     let rt = create_runtime();
-    
+
     c.bench_function("workspace_deletion", |b| {
         b.to_async(&rt).iter_with_setup(
             // Setup: create a workspace to delete
@@ -212,7 +214,7 @@ fn bench_workspace_deletion(c: &mut Criterion) {
 /// Benchmark getting active workspace
 fn bench_get_active_workspace(c: &mut Criterion) {
     let rt = create_runtime();
-    
+
     c.bench_function("get_active_workspace", |b| {
         b.to_async(&rt).iter_with_setup(
             // Setup: create workspaces and set one as active
@@ -220,7 +222,7 @@ fn bench_get_active_workspace(c: &mut Criterion) {
                 rt.block_on(async {
                     let manager = create_workspace_manager();
                     let pattern = create_test_pattern();
-                    
+
                     // Create multiple workspaces
                     let mut workspace_ids = Vec::new();
                     for i in 0..10 {
@@ -228,17 +230,15 @@ fn bench_get_active_workspace(c: &mut Criterion) {
                         let id = manager.create_workspace(request, pattern.id).await.unwrap();
                         workspace_ids.push(id);
                     }
-                    
+
                     // Switch to middle workspace
                     let _ = manager.switch_to_workspace(workspace_ids[5]).await;
-                    
+
                     manager
                 })
             },
             // Benchmark: get active workspace
-            |manager| async move {
-                black_box(manager.get_active_workspace().await)
-            },
+            |manager| async move { black_box(manager.get_active_workspace().await) },
         );
     });
 }
@@ -246,9 +246,9 @@ fn bench_get_active_workspace(c: &mut Criterion) {
 /// Benchmark workspace count retrieval
 fn bench_workspace_count(c: &mut Criterion) {
     let rt = create_runtime();
-    
+
     let workspace_counts = vec![0, 10, 50, 100];
-    
+
     for count in workspace_counts {
         c.bench_with_input(
             BenchmarkId::new("workspace_count", count),
@@ -260,19 +260,18 @@ fn bench_workspace_count(c: &mut Criterion) {
                         rt.block_on(async {
                             let manager = create_workspace_manager();
                             let pattern = create_test_pattern();
-                            
+
                             for i in 0..workspace_count {
                                 let request = create_workspace_request(i);
-                                let _ = manager.create_workspace(request, pattern.id).await.unwrap();
+                                let _ =
+                                    manager.create_workspace(request, pattern.id).await.unwrap();
                             }
-                            
+
                             manager
                         })
                     },
                     // Benchmark: get workspace count
-                    |manager| async move {
-                        black_box(manager.get_workspace_count().await)
-                    },
+                    |manager| async move { black_box(manager.get_workspace_count().await) },
                 );
             },
         );
@@ -282,7 +281,7 @@ fn bench_workspace_count(c: &mut Criterion) {
 /// Benchmark rapid workspace switching (simulating user behavior)
 fn bench_rapid_workspace_switching(c: &mut Criterion) {
     let rt = create_runtime();
-    
+
     c.bench_function("rapid_workspace_switching", |b| {
         b.to_async(&rt).iter_with_setup(
             // Setup: create 5 workspaces
@@ -290,14 +289,14 @@ fn bench_rapid_workspace_switching(c: &mut Criterion) {
                 rt.block_on(async {
                     let manager = create_workspace_manager();
                     let pattern = create_test_pattern();
-                    
+
                     let mut workspace_ids = Vec::new();
                     for i in 0..5 {
                         let request = create_workspace_request(i);
                         let id = manager.create_workspace(request, pattern.id).await.unwrap();
                         workspace_ids.push(id);
                     }
-                    
+
                     (manager, workspace_ids)
                 })
             },
@@ -305,7 +304,7 @@ fn bench_rapid_workspace_switching(c: &mut Criterion) {
             |(manager, workspace_ids)| async move {
                 // Simulate rapid switching pattern: 0 -> 2 -> 1 -> 4 -> 0
                 let switch_pattern = vec![0, 2, 1, 4, 0];
-                
+
                 for &index in &switch_pattern {
                     let _ = black_box(manager.switch_to_workspace(workspace_ids[index]).await);
                 }

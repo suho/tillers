@@ -1,12 +1,12 @@
 use crate::models::{
-    workspace::Workspace,
+    application_profile::ApplicationProfile,
+    keyboard_mapping::{
+        ActionParameters, ActionType, KeyboardMapping, ModifierKey, ShortcutCombination,
+    },
+    monitor_configuration::MonitorConfiguration,
     tiling_pattern::TilingPattern,
     window_rule::WindowRule,
-    monitor_configuration::MonitorConfiguration,
-    keyboard_mapping::{
-        KeyboardMapping, ShortcutCombination, ActionType, ActionParameters, ModifierKey,
-    },
-    application_profile::ApplicationProfile,
+    workspace::Workspace,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -65,32 +65,45 @@ impl ConfigParser {
         }
     }
 
-    pub fn parse_workspace_file<P: AsRef<Path>>(&mut self, path: P) -> Result<WorkspaceConfig, ConfigParseError> {
+    pub fn parse_workspace_file<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+    ) -> Result<WorkspaceConfig, ConfigParseError> {
         let content = std::fs::read_to_string(path)?;
         let config_file: ConfigFile = toml::from_str(&content)?;
-        
+
         self.validate_config(&config_file.config)?;
         self.migrate_keyboard_shortcuts(config_file.config)
     }
 
-    pub fn parse_workspaces_toml(&mut self, content: &str) -> Result<Vec<Workspace>, ConfigParseError> {
+    pub fn parse_workspaces_toml(
+        &mut self,
+        content: &str,
+    ) -> Result<Vec<Workspace>, ConfigParseError> {
         let workspaces: Vec<Workspace> = toml::from_str(content)?;
         self.validate_workspaces(&workspaces)?;
         Ok(workspaces)
     }
 
-    pub fn parse_patterns_toml(&mut self, content: &str) -> Result<Vec<TilingPattern>, ConfigParseError> {
+    pub fn parse_patterns_toml(
+        &mut self,
+        content: &str,
+    ) -> Result<Vec<TilingPattern>, ConfigParseError> {
         let patterns: Vec<TilingPattern> = toml::from_str(content)?;
         self.validate_patterns(&patterns)?;
         Ok(patterns)
     }
 
-    pub fn parse_keybindings_toml(&mut self, content: &str) -> Result<Vec<KeyboardMapping>, ConfigParseError> {
+    pub fn parse_keybindings_toml(
+        &mut self,
+        content: &str,
+    ) -> Result<Vec<KeyboardMapping>, ConfigParseError> {
         let raw_content: toml::Value = toml::from_str(content)?;
-        
+
         if let Some(legacy_mappings) = self.detect_legacy_keyboard_format(&raw_content) {
             self.migration_warnings.push(
-                "Detected Command-based keyboard shortcuts. Migrating to Option-based shortcuts.".to_string()
+                "Detected Command-based keyboard shortcuts. Migrating to Option-based shortcuts."
+                    .to_string(),
             );
             return self.migrate_legacy_keyboard_mappings(legacy_mappings);
         }
@@ -100,13 +113,19 @@ impl ConfigParser {
         Ok(mappings)
     }
 
-    pub fn parse_applications_toml(&mut self, content: &str) -> Result<Vec<ApplicationProfile>, ConfigParseError> {
+    pub fn parse_applications_toml(
+        &mut self,
+        content: &str,
+    ) -> Result<Vec<ApplicationProfile>, ConfigParseError> {
         let profiles: Vec<ApplicationProfile> = toml::from_str(content)?;
         self.validate_application_profiles(&profiles)?;
         Ok(profiles)
     }
 
-    pub fn parse_monitors_toml(&mut self, content: &str) -> Result<Vec<MonitorConfiguration>, ConfigParseError> {
+    pub fn parse_monitors_toml(
+        &mut self,
+        content: &str,
+    ) -> Result<Vec<MonitorConfiguration>, ConfigParseError> {
         let configs: Vec<MonitorConfiguration> = toml::from_str(content)?;
         self.validate_monitor_configurations(&configs)?;
         Ok(configs)
@@ -139,7 +158,10 @@ impl ConfigParser {
 
             if !shortcuts.insert(&workspace.keyboard_shortcut) {
                 return Err(ConfigParseError::ValidationError {
-                    message: format!("Duplicate keyboard shortcut: {}", workspace.keyboard_shortcut),
+                    message: format!(
+                        "Duplicate keyboard shortcut: {}",
+                        workspace.keyboard_shortcut
+                    ),
                 });
             }
 
@@ -151,7 +173,10 @@ impl ConfigParser {
 
             if workspace.name.len() > 100 {
                 return Err(ConfigParseError::ValidationError {
-                    message: format!("Workspace name too long: {} (max 100 chars)", workspace.name),
+                    message: format!(
+                        "Workspace name too long: {} (max 100 chars)",
+                        workspace.name
+                    ),
                 });
             }
         }
@@ -180,7 +205,10 @@ impl ConfigParser {
         Ok(())
     }
 
-    fn validate_keyboard_mappings(&self, mappings: &[KeyboardMapping]) -> Result<(), ConfigParseError> {
+    fn validate_keyboard_mappings(
+        &self,
+        mappings: &[KeyboardMapping],
+    ) -> Result<(), ConfigParseError> {
         let mut combinations = std::collections::HashSet::new();
 
         for mapping in mappings {
@@ -213,7 +241,10 @@ impl ConfigParser {
         Ok(())
     }
 
-    fn validate_application_profiles(&self, profiles: &[ApplicationProfile]) -> Result<(), ConfigParseError> {
+    fn validate_application_profiles(
+        &self,
+        profiles: &[ApplicationProfile],
+    ) -> Result<(), ConfigParseError> {
         let mut bundle_ids = std::collections::HashSet::new();
 
         for profile in profiles {
@@ -227,7 +258,10 @@ impl ConfigParser {
         Ok(())
     }
 
-    fn validate_monitor_configurations(&self, configs: &[MonitorConfiguration]) -> Result<(), ConfigParseError> {
+    fn validate_monitor_configurations(
+        &self,
+        configs: &[MonitorConfiguration],
+    ) -> Result<(), ConfigParseError> {
         for config in configs {
             if config.scale_factor <= 0.0 {
                 return Err(ConfigParseError::ValidationError {
@@ -240,9 +274,9 @@ impl ConfigParser {
     }
 
     fn validate_cross_references(&self, config: &WorkspaceConfig) -> Result<(), ConfigParseError> {
-        let pattern_ids: std::collections::HashSet<_> = 
+        let pattern_ids: std::collections::HashSet<_> =
             config.patterns.iter().map(|p| &p.id).collect();
-        let workspace_ids: std::collections::HashSet<_> = 
+        let workspace_ids: std::collections::HashSet<_> =
             config.workspaces.iter().map(|w| &w.id).collect();
 
         for workspace in &config.workspaces {
@@ -250,8 +284,7 @@ impl ConfigParser {
                 return Err(ConfigParseError::ValidationError {
                     message: format!(
                         "Workspace '{}' references non-existent tiling pattern: {}",
-                        workspace.name,
-                        workspace.tiling_pattern_id
+                        workspace.name, workspace.tiling_pattern_id
                     ),
                 });
             }
@@ -274,19 +307,23 @@ impl ConfigParser {
         Ok(())
     }
 
-    fn detect_legacy_keyboard_format(&self, raw_content: &toml::Value) -> Option<Vec<LegacyKeyboardMapping>> {
+    fn detect_legacy_keyboard_format(
+        &self,
+        raw_content: &toml::Value,
+    ) -> Option<Vec<LegacyKeyboardMapping>> {
         if let Some(array) = raw_content.as_array() {
             for item in array {
                 if let Some(table) = item.as_table() {
-                    if table.contains_key("modifier_preference") || 
-                       (table.contains_key("shortcut_combination") && 
-                        table.get("shortcut_combination")
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.contains("cmd+"))
-                            .unwrap_or(false)) {
-                        
+                    if table.contains_key("modifier_preference")
+                        || (table.contains_key("shortcut_combination")
+                            && table
+                                .get("shortcut_combination")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.contains("cmd+"))
+                                .unwrap_or(false))
+                    {
                         if let Ok(legacy_mappings) = toml::from_str::<Vec<LegacyKeyboardMapping>>(
-                            &toml::to_string(raw_content).unwrap_or_default()
+                            &toml::to_string(raw_content).unwrap_or_default(),
                         ) {
                             return Some(legacy_mappings);
                         }
@@ -297,7 +334,10 @@ impl ConfigParser {
         None
     }
 
-    fn migrate_legacy_keyboard_mappings(&mut self, legacy_mappings: Vec<LegacyKeyboardMapping>) -> Result<Vec<KeyboardMapping>, ConfigParseError> {
+    fn migrate_legacy_keyboard_mappings(
+        &mut self,
+        legacy_mappings: Vec<LegacyKeyboardMapping>,
+    ) -> Result<Vec<KeyboardMapping>, ConfigParseError> {
         let mut migrated_mappings = Vec::new();
 
         for legacy in legacy_mappings {
@@ -305,8 +345,7 @@ impl ConfigParser {
                 .map_err(|e| ConfigParseError::MigrationError {
                     message: format!(
                         "Invalid legacy shortcut '{}': {}",
-                        legacy.shortcut_combination,
-                        e
+                        legacy.shortcut_combination, e
                     ),
                 })?;
 
@@ -333,8 +372,7 @@ impl ConfigParser {
             .map_err(|e| ConfigParseError::MigrationError {
                 message: format!(
                     "Failed to migrate legacy shortcut '{}': {}",
-                    legacy.shortcut_combination,
-                    e
+                    legacy.shortcut_combination, e
                 ),
             })?;
 
@@ -400,21 +438,23 @@ impl ConfigParser {
         }
     }
 
-    fn migrate_keyboard_shortcuts(&mut self, mut config: WorkspaceConfig) -> Result<WorkspaceConfig, ConfigParseError> {
+    fn migrate_keyboard_shortcuts(
+        &mut self,
+        mut config: WorkspaceConfig,
+    ) -> Result<WorkspaceConfig, ConfigParseError> {
         let mut migration_needed = false;
 
         for workspace in &mut config.workspaces {
             if workspace.keyboard_shortcut.contains("cmd+") {
                 let old_shortcut = workspace.keyboard_shortcut.clone();
-                workspace.keyboard_shortcut = self.migrate_shortcut_combination(&workspace.keyboard_shortcut)?;
-                
+                workspace.keyboard_shortcut =
+                    self.migrate_shortcut_combination(&workspace.keyboard_shortcut)?;
+
                 if workspace.keyboard_shortcut != old_shortcut {
                     migration_needed = true;
                     self.migration_warnings.push(format!(
                         "Migrated workspace '{}' shortcut: {} → {}",
-                        workspace.name,
-                        old_shortcut,
-                        workspace.keyboard_shortcut
+                        workspace.name, old_shortcut, workspace.keyboard_shortcut
                     ));
                 }
             }
@@ -444,7 +484,7 @@ mod tests {
     #[test]
     fn test_parse_valid_workspace_toml() {
         let mut parser = ConfigParser::new();
-        
+
         let toml_content = r#"
 [[workspace]]
 id = "550e8400-e29b-41d4-a716-446655440000"
@@ -459,7 +499,7 @@ last_used = "2024-01-01T00:00:00Z"
 
         let result = parser.parse_workspaces_toml(toml_content);
         assert!(result.is_ok());
-        
+
         let workspaces = result.unwrap();
         assert_eq!(workspaces.len(), 1);
         assert_eq!(workspaces[0].name, "Development");
@@ -469,7 +509,7 @@ last_used = "2024-01-01T00:00:00Z"
     #[test]
     fn test_duplicate_workspace_names() {
         let mut parser = ConfigParser::new();
-        
+
         let toml_content = r#"
 [[workspace]]
 id = "550e8400-e29b-41d4-a716-446655440000"
@@ -492,13 +532,16 @@ last_used = "2024-01-01T00:00:00Z"
 
         let result = parser.parse_workspaces_toml(toml_content);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Duplicate workspace name"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Duplicate workspace name"));
     }
 
     #[test]
     fn test_migration_from_command_to_option() {
         let mut parser = ConfigParser::new();
-        
+
         let legacy_mapping = LegacyKeyboardMapping {
             id: Uuid::new_v4(),
             shortcut_combination: "cmd+1".to_string(),
@@ -512,13 +555,9 @@ last_used = "2024-01-01T00:00:00Z"
 
         let result = parser.migrate_legacy_keyboard_mappings(vec![legacy_mapping]);
         assert!(result.is_ok());
-        
+
         let migrated = result.unwrap();
-        assert_eq!(
-            migrated[0].shortcut_combination.to_config_string(),
-            "opt+1"
-        );
+        assert_eq!(migrated[0].shortcut_combination.to_config_string(), "opt+1");
         assert!(!parser.get_migration_warnings().is_empty());
     }
-
 }

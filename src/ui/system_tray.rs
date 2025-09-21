@@ -7,7 +7,7 @@
 use crate::{
     error_recovery::ErrorRecoveryManager,
     permissions::PermissionChecker,
-    services::{WorkspaceManager, WindowManager},
+    services::{WindowManager, WorkspaceManager},
     Result,
 };
 use std::sync::Arc;
@@ -98,7 +98,10 @@ impl SystemTrayManager {
         debug!("Initializing system tray stub");
         self.current_status = self.determine_current_status().await?;
         self.visible = self.config.show_icon;
-        info!("System tray stub initialised ({})", self.current_status.description());
+        info!(
+            "System tray stub initialised ({})",
+            self.current_status.description()
+        );
         Ok(())
     }
 
@@ -106,7 +109,10 @@ impl SystemTrayManager {
     pub async fn update_status(&mut self) -> Result<()> {
         let new_status = self.determine_current_status().await?;
         if new_status != self.current_status {
-            info!("System tray status changed: {:?} -> {:?}", self.current_status, new_status);
+            info!(
+                "System tray status changed: {:?} -> {:?}",
+                self.current_status, new_status
+            );
             self.current_status = new_status;
         }
         Ok(())
@@ -162,8 +168,8 @@ impl SystemTrayManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::workspace_manager::WorkspaceManagerConfig;
     use crate::permissions::PermissionConfig;
+    use crate::services::workspace_manager::WorkspaceManagerConfig;
 
     fn seed_managers() -> (
         Arc<WorkspaceManager>,
@@ -179,12 +185,19 @@ mod tests {
         let displays: Arc<dyn crate::macos::core_graphics::DisplayProvider> =
             Arc::new(crate::macos::core_graphics::InMemoryDisplayProvider::default());
         let window_manager = Arc::new(WindowManager::new(accessibility, displays));
-        let permission_checker = Arc::new(RwLock::new(PermissionChecker::new(PermissionConfig::default())));
+        let permission_checker = Arc::new(RwLock::new(PermissionChecker::new(
+            PermissionConfig::default(),
+        )));
         let recovery = Arc::new(ErrorRecoveryManager::new(
             crate::error_recovery::RecoveryConfig::default(),
             PermissionChecker::new(PermissionConfig::default()),
         ));
-        (workspace_manager, window_manager, recovery, permission_checker)
+        (
+            workspace_manager,
+            window_manager,
+            recovery,
+            permission_checker,
+        )
     }
 
     #[tokio::test]

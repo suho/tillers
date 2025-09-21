@@ -1,12 +1,9 @@
-use crate::config::parser::{ConfigParser, ConfigParseError, WorkspaceConfig, ConfigFile};
+use crate::config::parser::{ConfigFile, ConfigParseError, ConfigParser, WorkspaceConfig};
 use crate::config::validator::{ConfigValidator, ValidationResult, ValidationSeverity};
 use crate::models::{
-    workspace::Workspace,
-    tiling_pattern::TilingPattern,
-    window_rule::WindowRule,
-    keyboard_mapping::KeyboardMapping,
-    application_profile::ApplicationProfile,
-    monitor_configuration::MonitorConfiguration,
+    application_profile::ApplicationProfile, keyboard_mapping::KeyboardMapping,
+    monitor_configuration::MonitorConfiguration, tiling_pattern::TilingPattern,
+    window_rule::WindowRule, workspace::Workspace,
 };
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -24,7 +21,9 @@ pub enum PersistenceError {
     #[error("Parse error: {0}")]
     ParseError(#[from] ConfigParseError),
     #[error("Validation failed: {validation_errors:?}")]
-    ValidationError { validation_errors: Vec<ValidationResult> },
+    ValidationError {
+        validation_errors: Vec<ValidationResult>,
+    },
     #[error("Backup error: {message}")]
     BackupError { message: String },
     #[error("Lock error: {message}")]
@@ -47,7 +46,7 @@ impl Default for PersistenceConfig {
     fn default() -> Self {
         let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
         let config_dir = home_dir.join(".config").join("tillers");
-        
+
         Self {
             backup_dir: config_dir.join("backups"),
             config_dir,
@@ -76,8 +75,7 @@ pub struct ConfigPersistence {
 impl ConfigPersistence {
     pub fn new(config: PersistenceConfig) -> Result<Self, PersistenceError> {
         let parser = ConfigParser::new();
-        let validator = ConfigValidator::new()
-            .map_err(|e| PersistenceError::ParseError(e))?;
+        let validator = ConfigValidator::new().map_err(|e| PersistenceError::ParseError(e))?;
 
         Ok(Self {
             config,
@@ -93,8 +91,14 @@ impl ConfigPersistence {
         let default_files = [
             ("workspaces.toml", self.create_default_workspaces_config()?),
             ("patterns.toml", self.create_default_patterns_config()?),
-            ("keybindings.toml", self.create_default_keybindings_config()?),
-            ("applications.toml", self.create_default_applications_config()?),
+            (
+                "keybindings.toml",
+                self.create_default_keybindings_config()?,
+            ),
+            (
+                "applications.toml",
+                self.create_default_applications_config()?,
+            ),
             ("monitors.toml", self.create_default_monitors_config()?),
         ];
 
@@ -160,10 +164,10 @@ impl ConfigPersistence {
     pub fn save_workspaces(&mut self, workspaces: &[Workspace]) -> Result<(), PersistenceError> {
         let file_path = self.config.config_dir.join("workspaces.toml");
         self.backup_file(&file_path, "workspace_update")?;
-        
+
         let content = toml::to_string_pretty(&workspaces)?;
         self.write_file_atomic(&file_path, &content)?;
-        
+
         Ok(())
     }
 
@@ -173,13 +177,16 @@ impl ConfigPersistence {
         Ok(self.parser.parse_patterns_toml(&content)?)
     }
 
-    pub fn save_tiling_patterns(&mut self, patterns: &[TilingPattern]) -> Result<(), PersistenceError> {
+    pub fn save_tiling_patterns(
+        &mut self,
+        patterns: &[TilingPattern],
+    ) -> Result<(), PersistenceError> {
         let file_path = self.config.config_dir.join("patterns.toml");
         self.backup_file(&file_path, "pattern_update")?;
-        
+
         let content = toml::to_string_pretty(&patterns)?;
         self.write_file_atomic(&file_path, &content)?;
-        
+
         Ok(())
     }
 
@@ -188,20 +195,20 @@ impl ConfigPersistence {
         if !file_path.exists() {
             return Ok(Vec::new());
         }
-        
+
         let content = self.read_file_with_lock(&file_path)?;
-        let rules: Vec<WindowRule> = toml::from_str(&content)
-            .map_err(|e| ConfigParseError::TomlError(e))?;
+        let rules: Vec<WindowRule> =
+            toml::from_str(&content).map_err(|e| ConfigParseError::TomlError(e))?;
         Ok(rules)
     }
 
     pub fn save_window_rules(&mut self, rules: &[WindowRule]) -> Result<(), PersistenceError> {
         let file_path = self.config.config_dir.join("window_rules.toml");
         self.backup_file(&file_path, "window_rules_update")?;
-        
+
         let content = toml::to_string_pretty(&rules)?;
         self.write_file_atomic(&file_path, &content)?;
-        
+
         Ok(())
     }
 
@@ -211,66 +218,79 @@ impl ConfigPersistence {
         Ok(self.parser.parse_keybindings_toml(&content)?)
     }
 
-    pub fn save_keyboard_mappings(&mut self, mappings: &[KeyboardMapping]) -> Result<(), PersistenceError> {
+    pub fn save_keyboard_mappings(
+        &mut self,
+        mappings: &[KeyboardMapping],
+    ) -> Result<(), PersistenceError> {
         let file_path = self.config.config_dir.join("keybindings.toml");
         self.backup_file(&file_path, "keybindings_update")?;
-        
+
         let content = toml::to_string_pretty(&mappings)?;
         self.write_file_atomic(&file_path, &content)?;
-        
+
         Ok(())
     }
 
-    pub fn load_application_profiles(&mut self) -> Result<Vec<ApplicationProfile>, PersistenceError> {
+    pub fn load_application_profiles(
+        &mut self,
+    ) -> Result<Vec<ApplicationProfile>, PersistenceError> {
         let file_path = self.config.config_dir.join("applications.toml");
         let content = self.read_file_with_lock(&file_path)?;
         Ok(self.parser.parse_applications_toml(&content)?)
     }
 
-    pub fn save_application_profiles(&mut self, profiles: &[ApplicationProfile]) -> Result<(), PersistenceError> {
+    pub fn save_application_profiles(
+        &mut self,
+        profiles: &[ApplicationProfile],
+    ) -> Result<(), PersistenceError> {
         let file_path = self.config.config_dir.join("applications.toml");
         self.backup_file(&file_path, "applications_update")?;
-        
+
         let content = toml::to_string_pretty(&profiles)?;
         self.write_file_atomic(&file_path, &content)?;
-        
+
         Ok(())
     }
 
-    pub fn load_monitor_configurations(&mut self) -> Result<Vec<MonitorConfiguration>, PersistenceError> {
+    pub fn load_monitor_configurations(
+        &mut self,
+    ) -> Result<Vec<MonitorConfiguration>, PersistenceError> {
         let file_path = self.config.config_dir.join("monitors.toml");
         let content = self.read_file_with_lock(&file_path)?;
         Ok(self.parser.parse_monitors_toml(&content)?)
     }
 
-    pub fn save_monitor_configurations(&mut self, configs: &[MonitorConfiguration]) -> Result<(), PersistenceError> {
+    pub fn save_monitor_configurations(
+        &mut self,
+        configs: &[MonitorConfiguration],
+    ) -> Result<(), PersistenceError> {
         let file_path = self.config.config_dir.join("monitors.toml");
         self.backup_file(&file_path, "monitors_update")?;
-        
+
         let content = toml::to_string_pretty(&configs)?;
         self.write_file_atomic(&file_path, &content)?;
-        
+
         Ok(())
     }
 
     pub fn export_config(&mut self, export_path: &Path) -> Result<(), PersistenceError> {
         let config = self.load_full_config()?;
-        
+
         let config_file = ConfigFile {
             version: "1.0".to_string(),
             config,
         };
-        
+
         let content = toml::to_string_pretty(&config_file)?;
         self.write_file_atomic(export_path, &content)?;
-        
+
         Ok(())
     }
 
     pub fn import_config(&mut self, import_path: &Path) -> Result<Vec<String>, PersistenceError> {
         let content = fs::read_to_string(import_path)?;
-        let config_file: ConfigFile = toml::from_str(&content)
-            .map_err(|e| ConfigParseError::TomlError(e))?;
+        let config_file: ConfigFile =
+            toml::from_str(&content).map_err(|e| ConfigParseError::TomlError(e))?;
 
         if self.config.enable_validation {
             self.validate_config(&config_file.config)?;
@@ -278,7 +298,7 @@ impl ConfigPersistence {
 
         self.backup_existing_files("config_import")?;
         self.save_full_config(&config_file.config)?;
-        
+
         Ok(self.parser.get_migration_warnings().to_vec())
     }
 
@@ -288,7 +308,7 @@ impl ConfigPersistence {
 
     fn validate_config(&self, config: &WorkspaceConfig) -> Result<(), PersistenceError> {
         let validation_results = self.validator.validate_full_config(config);
-        
+
         let errors: Vec<_> = validation_results
             .iter()
             .filter(|r| r.rule.severity == ValidationSeverity::Error)
@@ -307,7 +327,7 @@ impl ConfigPersistence {
     fn ensure_directory_exists(&self, dir: &Path) -> Result<(), PersistenceError> {
         if !dir.exists() {
             fs::create_dir_all(dir)?;
-            
+
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
@@ -330,20 +350,20 @@ impl ConfigPersistence {
     fn write_file_atomic(&self, file_path: &Path, content: &str) -> Result<(), PersistenceError> {
         if self.config.atomic_writes {
             let temp_path = file_path.with_extension("tmp");
-            
+
             fs::write(&temp_path, content)?;
-            
+
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
                 let permissions = fs::Permissions::from_mode(self.config.file_permissions);
                 fs::set_permissions(&temp_path, permissions)?;
             }
-            
+
             fs::rename(temp_path, file_path)?;
         } else {
             fs::write(file_path, content)?;
-            
+
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
@@ -351,7 +371,7 @@ impl ConfigPersistence {
                 fs::set_permissions(file_path, permissions)?;
             }
         }
-        
+
         Ok(())
     }
 
@@ -415,7 +435,7 @@ impl ConfigPersistence {
         for entry in fs::read_dir(&self.config.backup_dir)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.extension().and_then(|s| s.to_str()) == Some("backup") {
                 if let Some(metadata) = fs::metadata(&path).ok() {
                     if let Ok(modified) = metadata.modified() {
@@ -430,7 +450,7 @@ impl ConfigPersistence {
         if backup_files.len() > self.config.max_backups {
             for (old_backup, _) in backup_files.iter().skip(self.config.max_backups) {
                 fs::remove_file(old_backup)?;
-                
+
                 let metadata_path = old_backup.with_extension("metadata");
                 if metadata_path.exists() {
                     fs::remove_file(metadata_path)?;
@@ -461,7 +481,7 @@ impl ConfigPersistence {
 
     fn create_default_patterns_config(&self) -> Result<String, PersistenceError> {
         use crate::models::tiling_pattern::{LayoutAlgorithm, ResizeBehavior};
-        
+
         let default_pattern = TilingPattern {
             id: Uuid::new_v4(),
             name: "Two Column".to_string(),
@@ -495,8 +515,7 @@ impl ConfigPersistence {
 
 impl Default for ConfigPersistence {
     fn default() -> Self {
-        Self::new(PersistenceConfig::default())
-            .expect("Failed to create default ConfigPersistence")
+        Self::new(PersistenceConfig::default()).expect("Failed to create default ConfigPersistence")
     }
 }
 
@@ -510,7 +529,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_dir = temp_dir.path().join("test_config");
         let backup_dir = config_dir.join("backups");
-        
+
         let persistence_config = PersistenceConfig {
             config_dir: config_dir.clone(),
             backup_dir,
@@ -532,7 +551,7 @@ mod tests {
     fn test_atomic_write() {
         let temp_dir = TempDir::new().unwrap();
         let config_dir = temp_dir.path().join("test_config");
-        
+
         let persistence_config = PersistenceConfig {
             config_dir: config_dir.clone(),
             atomic_writes: true,
@@ -541,12 +560,14 @@ mod tests {
 
         let persistence = ConfigPersistence::new(persistence_config).unwrap();
         let test_file = config_dir.join("test.toml");
-        
+
         fs::create_dir_all(&config_dir).unwrap();
-        
+
         let test_content = "test = \"content\"";
-        persistence.write_file_atomic(&test_file, test_content).unwrap();
-        
+        persistence
+            .write_file_atomic(&test_file, test_content)
+            .unwrap();
+
         let read_content = fs::read_to_string(&test_file).unwrap();
         assert_eq!(read_content, test_content);
     }
@@ -556,7 +577,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config_dir = temp_dir.path().join("test_config");
         let backup_dir = config_dir.join("backups");
-        
+
         let persistence_config = PersistenceConfig {
             config_dir: config_dir.clone(),
             backup_dir: backup_dir.clone(),
@@ -566,7 +587,7 @@ mod tests {
 
         let persistence = ConfigPersistence::new(persistence_config).unwrap();
         persistence.initialize_config_directory().unwrap();
-        
+
         let test_file = config_dir.join("test.toml");
         fs::write(&test_file, "original content").unwrap();
 
@@ -582,9 +603,13 @@ mod tests {
         let backup_count = fs::read_dir(&backup_dir)
             .unwrap()
             .filter(|entry| {
-                entry.as_ref().unwrap().path()
+                entry
+                    .as_ref()
+                    .unwrap()
+                    .path()
                     .extension()
-                    .and_then(|s| s.to_str()) == Some("backup")
+                    .and_then(|s| s.to_str())
+                    == Some("backup")
             })
             .count();
 

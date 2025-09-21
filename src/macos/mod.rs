@@ -8,7 +8,9 @@
 pub mod accessibility;
 pub mod core_graphics;
 pub mod objc_bridge;
+pub mod permissions;
 
 pub use accessibility::*;
 pub use core_graphics::*;
 pub use objc_bridge::*;
+pub use permissions::*;

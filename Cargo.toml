@@ -21,6 +21,8 @@ tokio = { version = "1.0", features = ["full"] }
 cocoa = "0.25"
 objc = "0.2"
 core-graphics = "0.23"
+core-foundation = "0.9"
+core-foundation-sys = "0.8"
 
 # Serialization and configuration
 serde = { version = "1.0", features = ["derive"] }

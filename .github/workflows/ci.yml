@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -42,3 +42,46 @@ jobs:
     
     - name: Run benchmarks
       run: cargo bench --no-run
+
+  package:
+    needs: test
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build release binary
+      run: cargo build --release
+
+    - name: Determine version
+      id: version
+      shell: bash
+      run: |
+        VERSION=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "([^"]+)"/\1/')
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+    - name: Package app bundle
+      run: scripts/create_cask_release.sh --version "$VERSION" --download-url "https://github.com/${{ github.repository }}/releases/download/v$VERSION/TilleRS-$VERSION.zip" --skip-build
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: tillers-macos-${{ steps.version.outputs.version }}
+        path: |
+          target/release/TilleRS-${{ env.VERSION }}.zip
+          target/release/tillers.cask.rb

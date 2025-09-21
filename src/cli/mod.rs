@@ -3,16 +3,12 @@
 //! Provides CLI commands for configuration management, debugging,
 //! and system administration of the TilleRS window manager.
 
-use crate::{
-    error_recovery::ErrorRecoveryManager,
-    services::WorkspaceManager,
-    Result,
-};
+use crate::{error_recovery::ErrorRecoveryManager, services::WorkspaceManager, Result};
 use clap::{Args, Parser, Subcommand};
-use std::sync::Arc;
-use tracing::{debug, info, error};
 use serde_json;
 use std::env;
+use std::sync::Arc;
+use tracing::{debug, error, info};
 
 /// TilleRS command-line interface
 #[derive(Parser)]
@@ -43,19 +39,19 @@ pub struct TilleRSCli {
 pub enum Commands {
     /// Workspace management commands
     Workspace(WorkspaceCommands),
-    
+
     /// Window management commands
     Window(WindowCommands),
-    
+
     /// Configuration management commands
     Config(ConfigCommands),
-    
+
     /// Permission management commands
     Permissions(PermissionCommands),
-    
+
     /// Diagnostics and debugging commands
     Diagnostics(DiagnosticsCommands),
-    
+
     /// Service management commands
     Service(ServiceCommands),
 }
@@ -71,41 +67,41 @@ pub struct WorkspaceCommands {
 pub enum WorkspaceActions {
     /// List all workspaces
     List,
-    
+
     /// Create a new workspace
     Create {
         /// Workspace name
         name: String,
-        
+
         /// Workspace description
         #[arg(short, long)]
         description: Option<String>,
-        
+
         /// Keyboard shortcut (e.g., "opt+1")
         #[arg(short, long)]
         shortcut: Option<String>,
-        
+
         /// Auto-arrange windows
         #[arg(short, long)]
         auto_arrange: bool,
     },
-    
+
     /// Delete a workspace
     Delete {
         /// Workspace name or ID
         workspace: String,
-        
+
         /// Force deletion without confirmation
         #[arg(short, long)]
         force: bool,
     },
-    
+
     /// Switch to a workspace
     Switch {
         /// Workspace name or ID
         workspace: String,
     },
-    
+
     /// Show workspace details
     Show {
         /// Workspace name or ID
@@ -124,27 +120,27 @@ pub struct WindowCommands {
 pub enum WindowActions {
     /// List all windows
     List,
-    
+
     /// Show window details
     Show {
         /// Window ID
         window_id: u32,
     },
-    
+
     /// Move window to workspace
     Move {
         /// Window ID
         window_id: u32,
-        
+
         /// Target workspace name or ID
         workspace: String,
     },
-    
+
     /// Apply tiling pattern to windows
     Tile {
         /// Tiling pattern name
         pattern: String,
-        
+
         /// Workspace name (optional, defaults to current)
         #[arg(short, long)]
         workspace: Option<String>,
@@ -162,48 +158,48 @@ pub struct ConfigCommands {
 pub enum ConfigActions {
     /// Show current configuration
     Show,
-    
+
     /// Validate configuration
     Validate {
         /// Configuration file path
         #[arg(short, long)]
         file: Option<String>,
     },
-    
+
     /// Set configuration value
     Set {
         /// Configuration key (dot notation, e.g., "keyboard.modifier")
         key: String,
-        
+
         /// Configuration value
         value: String,
     },
-    
+
     /// Get configuration value
     Get {
         /// Configuration key (dot notation)
         key: String,
     },
-    
+
     /// Reset configuration to defaults
     Reset {
         /// Force reset without confirmation
         #[arg(short, long)]
         force: bool,
     },
-    
+
     /// Export configuration
     Export {
         /// Output file path
         #[arg(short, long)]
         output: Option<String>,
     },
-    
+
     /// Import configuration
     Import {
         /// Input file path
         file: String,
-        
+
         /// Merge with existing configuration
         #[arg(short, long)]
         merge: bool,
@@ -221,14 +217,14 @@ pub struct PermissionCommands {
 pub enum PermissionActions {
     /// Check permission status
     Status,
-    
+
     /// Request permissions
     Request {
         /// Specific permission type (accessibility, input-monitoring, screen-recording)
         #[arg(short, long)]
         permission: Option<String>,
     },
-    
+
     /// Show permission instructions
     Instructions,
 }
@@ -244,29 +240,29 @@ pub struct DiagnosticsCommands {
 pub enum DiagnosticsActions {
     /// Show system health status
     Health,
-    
+
     /// Show detailed system information
     System,
-    
+
     /// Check API connectivity
     ApiCheck,
-    
+
     /// Export logs
     Logs {
         /// Output file path
         #[arg(short, long)]
         output: Option<String>,
-        
+
         /// Number of recent log lines to export
         #[arg(short, long, default_value = "1000")]
         lines: usize,
     },
-    
+
     /// Performance benchmark
     Benchmark {
         /// Benchmark type (workspace-switching, window-positioning)
         benchmark_type: String,
-        
+
         /// Number of iterations
         #[arg(short, long, default_value = "100")]
         iterations: usize,
@@ -284,19 +280,19 @@ pub struct ServiceCommands {
 pub enum ServiceActions {
     /// Start TilleRS service
     Start,
-    
+
     /// Stop TilleRS service
     Stop,
-    
+
     /// Restart TilleRS service
     Restart,
-    
+
     /// Show service status
     Status,
-    
+
     /// Install TilleRS as a system service
     Install,
-    
+
     /// Uninstall TilleRS system service
     Uninstall,
 }
@@ -328,21 +324,15 @@ impl TilleRSCliExecutor {
             Commands::Workspace(workspace_cmd) => {
                 self.execute_workspace_command(workspace_cmd).await
             }
-            Commands::Window(window_cmd) => {
-                self.execute_window_command(window_cmd).await
-            }
-            Commands::Config(config_cmd) => {
-                self.execute_config_command(config_cmd).await
-            }
+            Commands::Window(window_cmd) => self.execute_window_command(window_cmd).await,
+            Commands::Config(config_cmd) => self.execute_config_command(config_cmd).await,
             Commands::Permissions(permission_cmd) => {
                 self.execute_permission_command(permission_cmd).await
             }
             Commands::Diagnostics(diagnostics_cmd) => {
                 self.execute_diagnostics_command(diagnostics_cmd).await
             }
-            Commands::Service(service_cmd) => {
-                self.execute_service_command(service_cmd).await
-            }
+            Commands::Service(service_cmd) => self.execute_service_command(service_cmd).await,
         }
     }
 
@@ -352,7 +342,7 @@ impl TilleRSCliExecutor {
         match cmd.action {
             WorkspaceActions::List => {
                 let workspaces = self.workspace_manager.list_workspaces().await;
-                
+
                 if self.json_output {
                     println!("{}", serde_json::to_string_pretty(&workspaces)?);
                 } else {
@@ -365,15 +355,24 @@ impl TilleRSCliExecutor {
                                 "  {} - {} ({})",
                                 workspace.id,
                                 workspace.name,
-                                if workspace.is_active() { "active" } else { "inactive" }
+                                if workspace.is_active() {
+                                    "active"
+                                } else {
+                                    "inactive"
+                                }
                             );
                         }
                     }
                 }
             }
-            WorkspaceActions::Create { name, description, shortcut, auto_arrange } => {
+            WorkspaceActions::Create {
+                name,
+                description,
+                shortcut,
+                auto_arrange,
+            } => {
                 info!("Creating workspace: {}", name);
-                
+
                 // This would use the actual workspace creation API
                 println!("Workspace '{}' would be created with:", name);
                 if let Some(desc) = description {
@@ -386,10 +385,13 @@ impl TilleRSCliExecutor {
             }
             WorkspaceActions::Delete { workspace, force } => {
                 if !force {
-                    println!("Are you sure you want to delete workspace '{}'? (y/N)", workspace);
+                    println!(
+                        "Are you sure you want to delete workspace '{}'? (y/N)",
+                        workspace
+                    );
                     // In a real implementation, this would wait for user confirmation
                 }
-                
+
                 info!("Deleting workspace: {}", workspace);
                 println!("Workspace '{}' would be deleted", workspace);
             }
@@ -399,10 +401,13 @@ impl TilleRSCliExecutor {
             }
             WorkspaceActions::Show { workspace } => {
                 info!("Showing workspace details: {}", workspace);
-                println!("Workspace details for '{}' would be displayed here", workspace);
+                println!(
+                    "Workspace details for '{}' would be displayed here",
+                    workspace
+                );
             }
         }
-        
+
         Ok(())
     }
 
@@ -412,7 +417,7 @@ impl TilleRSCliExecutor {
         match cmd.action {
             WindowActions::List => {
                 info!("Listing all windows");
-                
+
                 if self.json_output {
                     println!("{{\"windows\": []}}");
                 } else {
@@ -424,17 +429,29 @@ impl TilleRSCliExecutor {
                 info!("Showing window details for ID: {}", window_id);
                 println!("Window {} details would be displayed here", window_id);
             }
-            WindowActions::Move { window_id, workspace } => {
+            WindowActions::Move {
+                window_id,
+                workspace,
+            } => {
                 info!("Moving window {} to workspace {}", window_id, workspace);
-                println!("Would move window {} to workspace '{}'", window_id, workspace);
+                println!(
+                    "Would move window {} to workspace '{}'",
+                    window_id, workspace
+                );
             }
             WindowActions::Tile { pattern, workspace } => {
                 let ws_name = workspace.unwrap_or_else(|| "current".to_string());
-                info!("Applying tiling pattern '{}' to workspace '{}'", pattern, ws_name);
-                println!("Would apply tiling pattern '{}' to workspace '{}'", pattern, ws_name);
+                info!(
+                    "Applying tiling pattern '{}' to workspace '{}'",
+                    pattern, ws_name
+                );
+                println!(
+                    "Would apply tiling pattern '{}' to workspace '{}'",
+                    pattern, ws_name
+                );
             }
         }
-        
+
         Ok(())
     }
 
@@ -444,7 +461,7 @@ impl TilleRSCliExecutor {
         match cmd.action {
             ConfigActions::Show => {
                 info!("Displaying current configuration");
-                
+
                 if self.json_output {
                     println!("{{\"config\": {{\"placeholder\": true}}}}");
                 } else {
@@ -455,7 +472,10 @@ impl TilleRSCliExecutor {
             ConfigActions::Validate { file } => {
                 let file_path = file.unwrap_or_else(|| "default config".to_string());
                 info!("Validating configuration: {}", file_path);
-                println!("Configuration validation would be performed for: {}", file_path);
+                println!(
+                    "Configuration validation would be performed for: {}",
+                    file_path
+                );
             }
             ConfigActions::Set { key, value } => {
                 info!("Setting configuration: {} = {}", key, value);
@@ -479,10 +499,13 @@ impl TilleRSCliExecutor {
             }
             ConfigActions::Import { file, merge } => {
                 info!("Importing configuration from: {} (merge: {})", file, merge);
-                println!("Would import configuration from: {} (merge: {})", file, merge);
+                println!(
+                    "Would import configuration from: {} (merge: {})",
+                    file, merge
+                );
             }
         }
-        
+
         Ok(())
     }
 
@@ -492,9 +515,9 @@ impl TilleRSCliExecutor {
         match cmd.action {
             PermissionActions::Status => {
                 info!("Checking permission status");
-                
+
                 let health_status = self.error_recovery.get_health_status().await?;
-                
+
                 if self.json_output {
                     let breaker_info = if health_status.active_circuit_breakers.is_empty() {
                         Vec::new()
@@ -513,34 +536,41 @@ impl TilleRSCliExecutor {
                     println!("{}", serde_json::to_string_pretty(&status_json)?);
                 } else {
                     println!("Permission Status:");
-                    println!("  Permissions granted: {}", health_status.permissions_granted);
-                    println!("  Active circuit breakers: {:?}", health_status.active_circuit_breakers);
+                    println!(
+                        "  Permissions granted: {}",
+                        health_status.permissions_granted
+                    );
+                    println!(
+                        "  Active circuit breakers: {:?}",
+                        health_status.active_circuit_breakers
+                    );
                     println!("  System health: {}", health_status.description());
                 }
             }
-            PermissionActions::Request { permission } => {
-                match permission {
-                    Some(perm_type) => {
-                        info!("Requesting specific permission: {}", perm_type);
-                        println!("Would request {} permission", perm_type);
-                    }
-                    None => {
-                        info!("Requesting all required permissions");
-                        let granted = self.error_recovery.check_and_recover_permissions().await?;
-                        
-                        if granted {
-                            println!("All required permissions are granted");
-                        } else {
-                            println!("Some permissions are missing - please check System Preferences");
-                        }
+            PermissionActions::Request { permission } => match permission {
+                Some(perm_type) => {
+                    info!("Requesting specific permission: {}", perm_type);
+                    println!("Would request {} permission", perm_type);
+                }
+                None => {
+                    info!("Requesting all required permissions");
+                    let granted = self.error_recovery.check_and_recover_permissions().await?;
+
+                    if granted {
+                        println!("All required permissions are granted");
+                    } else {
+                        println!("Some permissions are missing - please check System Preferences");
                     }
                 }
-            }
+            },
             PermissionActions::Instructions => {
                 info!("Displaying permission instructions");
-                
-                let instructions = self.error_recovery.get_permission_recovery_instructions().await?;
-                
+
+                let instructions = self
+                    .error_recovery
+                    .get_permission_recovery_instructions()
+                    .await?;
+
                 if instructions.is_empty() {
                     println!("All required permissions are granted!");
                 } else {
@@ -551,7 +581,7 @@ impl TilleRSCliExecutor {
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -561,10 +591,10 @@ impl TilleRSCliExecutor {
         match cmd.action {
             DiagnosticsActions::Health => {
                 info!("Performing health check");
-                
+
                 let health_status = self.error_recovery.get_health_status().await?;
                 let workspace_count = self.workspace_manager.get_workspace_count().await;
-                
+
                 if self.json_output {
                     let breaker_list = &health_status.active_circuit_breakers;
                     let breaker_info = if breaker_list.is_empty() {
@@ -587,8 +617,22 @@ impl TilleRSCliExecutor {
                     println!("{}", serde_json::to_string_pretty(&health_json)?);
                 } else {
                     println!("=== TilleRS Health Check ===");
-                    println!("Status: {}", if health_status.is_healthy() { "HEALTHY" } else { "UNHEALTHY" });
-                    println!("Permissions: {}", if health_status.permissions_granted { "OK" } else { "MISSING" });
+                    println!(
+                        "Status: {}",
+                        if health_status.is_healthy() {
+                            "HEALTHY"
+                        } else {
+                            "UNHEALTHY"
+                        }
+                    );
+                    println!(
+                        "Permissions: {}",
+                        if health_status.permissions_granted {
+                            "OK"
+                        } else {
+                            "MISSING"
+                        }
+                    );
                     let circuit_breakers = if health_status.active_circuit_breakers.is_empty() {
                         "None".to_string()
                     } else {
@@ -620,12 +664,21 @@ impl TilleRSCliExecutor {
                 info!("Exporting {} log lines to: {}", lines, output_path);
                 println!("Would export {} log lines to: {}", lines, output_path);
             }
-            DiagnosticsActions::Benchmark { benchmark_type, iterations } => {
-                info!("Running benchmark: {} ({} iterations)", benchmark_type, iterations);
-                println!("Would run {} benchmark with {} iterations", benchmark_type, iterations);
+            DiagnosticsActions::Benchmark {
+                benchmark_type,
+                iterations,
+            } => {
+                info!(
+                    "Running benchmark: {} ({} iterations)",
+                    benchmark_type, iterations
+                );
+                println!(
+                    "Would run {} benchmark with {} iterations",
+                    benchmark_type, iterations
+                );
             }
         }
-        
+
         Ok(())
     }
 
@@ -658,7 +711,7 @@ impl TilleRSCliExecutor {
                 println!("TilleRS system service would be uninstalled");
             }
         }
-        
+
         Ok(())
     }
 }
@@ -669,19 +722,15 @@ pub async fn run_cli(
     error_recovery: Arc<ErrorRecoveryManager>,
 ) -> Result<()> {
     let cli = TilleRSCli::parse();
-    
+
     // Set up logging level based on verbosity
     if cli.verbose {
         // In a real implementation, this would increase log level
         debug!("Verbose output enabled");
     }
-    
-    let executor = TilleRSCliExecutor::new(
-        workspace_manager,
-        error_recovery,
-        cli.json,
-    );
-    
+
+    let executor = TilleRSCliExecutor::new(workspace_manager, error_recovery, cli.json);
+
     if let Err(e) = executor.execute(cli.command).await {
         if cli.json {
             let error_json = serde_json::json!({
@@ -694,7 +743,7 @@ pub async fn run_cli(
         }
         std::process::exit(1);
     }
-    
+
     Ok(())
 }
 
@@ -708,24 +757,28 @@ mod tests {
         // Test basic command parsing
         let cli = TilleRSCli::try_parse_from(&["tillers", "workspace", "list"]);
         assert!(cli.is_ok());
-        
+
         let cli = cli.unwrap();
         match cli.command {
-            Commands::Workspace(workspace_cmd) => {
-                match workspace_cmd.action {
-                    WorkspaceActions::List => (),
-                    _ => panic!("Expected List action"),
-                }
-            }
+            Commands::Workspace(workspace_cmd) => match workspace_cmd.action {
+                WorkspaceActions::List => (),
+                _ => panic!("Expected List action"),
+            },
             _ => panic!("Expected Workspace command"),
         }
     }
 
     #[test]
     fn test_global_flags() {
-        let cli = TilleRSCli::try_parse_from(&["tillers", "--verbose", "--json", "diagnostics", "health"]);
+        let cli = TilleRSCli::try_parse_from(&[
+            "tillers",
+            "--verbose",
+            "--json",
+            "diagnostics",
+            "health",
+        ]);
         assert!(cli.is_ok());
-        
+
         let cli = cli.unwrap();
         assert!(cli.verbose);
         assert!(cli.json);
@@ -734,10 +787,15 @@ mod tests {
     #[test]
     fn test_workspace_create_command() {
         let cli = TilleRSCli::try_parse_from(&[
-            "tillers", "workspace", "create", "test-workspace",
-            "--description", "Test workspace",
-            "--shortcut", "opt+1",
-            "--auto-arrange"
+            "tillers",
+            "workspace",
+            "create",
+            "test-workspace",
+            "--description",
+            "Test workspace",
+            "--shortcut",
+            "opt+1",
+            "--auto-arrange",
         ]);
         assert!(cli.is_ok());
     }
@@ -746,10 +804,14 @@ mod tests {
     fn test_diagnostics_commands() {
         let health_cli = TilleRSCli::try_parse_from(&["tillers", "diagnostics", "health"]);
         assert!(health_cli.is_ok());
-        
+
         let benchmark_cli = TilleRSCli::try_parse_from(&[
-            "tillers", "diagnostics", "benchmark", "workspace-switching",
-            "--iterations", "50"
+            "tillers",
+            "diagnostics",
+            "benchmark",
+            "workspace-switching",
+            "--iterations",
+            "50",
         ]);
         assert!(benchmark_cli.is_ok());
     }

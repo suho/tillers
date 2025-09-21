@@ -3,26 +3,23 @@
 //! Main application entry point with comprehensive initialization,
 //! error recovery, and application lifecycle management.
 
+use std::collections::HashSet;
+use std::sync::Arc;
 use tillers::{
     error_recovery::{ErrorRecoveryManager, RecoveryConfig},
-    logging::{LogConfig, init_logging},
+    logging::{init_logging, LogConfig},
     permissions::{PermissionChecker, PermissionConfig},
     services::{
-        WorkspaceManager, WorkspaceManagerConfig,
-        WindowManager,
-        KeyboardHandler,
-        TilingEngine,
+        KeyboardHandler, TilingEngine, WindowManager, WorkspaceManager, WorkspaceManagerConfig,
     },
     Result, TilleRSError,
 };
-use std::collections::HashSet;
-use std::sync::Arc;
 use tokio::{
     signal,
     sync::{broadcast, RwLock},
-    time::{Duration, sleep},
+    time::{sleep, Duration},
 };
-use tracing::{debug, error, info, warn, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 /// Application configuration and state
 pub struct TilleRSApp {
@@ -46,10 +43,14 @@ impl TilleRSApp {
     pub async fn new() -> Result<Self> {
         // Initialize logging first
         let log_config = LogConfig::from_env();
-        init_logging(&log_config)
-            .map_err(|e| TilleRSError::ConfigurationError(format!("Failed to initialize logging: {}", e)))?;
+        init_logging(&log_config).map_err(|e| {
+            TilleRSError::ConfigurationError(format!("Failed to initialize logging: {}", e))
+        })?;
 
-        info!("TilleRS - Keyboard-First Tiling Window Manager v{}", env!("CARGO_PKG_VERSION"));
+        info!(
+            "TilleRS - Keyboard-First Tiling Window Manager v{}",
+            env!("CARGO_PKG_VERSION")
+        );
         info!("Initializing application components...");
 
         // Create shutdown channel
@@ -158,7 +159,7 @@ impl TilleRSApp {
 
         // Stop background services
         info!("Stopping background services...");
-        
+
         // In a real implementation, we would:
         // 1. Stop keyboard handler
         // 2. Save workspace states
@@ -171,21 +172,21 @@ impl TilleRSApp {
 
     // Private helper methods
 
-    async fn check_initial_permissions(
-        error_recovery: &Arc<ErrorRecoveryManager>,
-    ) -> Result<()> {
+    async fn check_initial_permissions(error_recovery: &Arc<ErrorRecoveryManager>) -> Result<()> {
         info!("Checking macOS permissions...");
 
         let permissions_granted = error_recovery.check_and_recover_permissions().await?;
-        
+
         if !permissions_granted {
-            let instructions = error_recovery.get_permission_recovery_instructions().await?;
-            
+            let instructions = error_recovery
+                .get_permission_recovery_instructions()
+                .await?;
+
             error!("Required permissions not granted. Please enable the following:");
             for instruction in instructions {
                 println!("\n{}", instruction);
             }
-            
+
             return Err(TilleRSError::PermissionDenied(
                 "Required macOS permissions not granted. Please enable permissions and restart TilleRS.".to_string()
             ).into());
@@ -195,7 +196,9 @@ impl TilleRSApp {
         Ok(())
     }
 
-    async fn init_workspace_manager(error_recovery: &Arc<ErrorRecoveryManager>) -> Result<Arc<WorkspaceManager>> {
+    async fn init_workspace_manager(
+        error_recovery: &Arc<ErrorRecoveryManager>,
+    ) -> Result<Arc<WorkspaceManager>> {
         let manager = error_recovery
             .recover_and_retry("workspace_manager_init", || {
                 WorkspaceManager::new(WorkspaceManagerConfig::default())
@@ -206,16 +209,22 @@ impl TilleRSApp {
         Ok(Arc::new(manager))
     }
 
-    async fn init_window_manager(error_recovery: &Arc<ErrorRecoveryManager>) -> Result<Arc<WindowManager>> {
-        let manager = error_recovery.recover_and_retry("window_manager_init", || {
-            Ok(WindowManager::with_default_providers())
-        }).await?;
+    async fn init_window_manager(
+        error_recovery: &Arc<ErrorRecoveryManager>,
+    ) -> Result<Arc<WindowManager>> {
+        let manager = error_recovery
+            .recover_and_retry("window_manager_init", || {
+                Ok(WindowManager::with_default_providers())
+            })
+            .await?;
 
         debug!("Window manager initialized");
         Ok(Arc::new(manager))
     }
 
-    async fn init_tiling_engine(error_recovery: &Arc<ErrorRecoveryManager>) -> Result<Arc<TilingEngine>> {
+    async fn init_tiling_engine(
+        error_recovery: &Arc<ErrorRecoveryManager>,
+    ) -> Result<Arc<TilingEngine>> {
         let engine = error_recovery
             .recover_and_retry("tiling_engine_init", || Ok(TilingEngine::new()))
             .await?;
@@ -224,7 +233,9 @@ impl TilleRSApp {
         Ok(Arc::new(engine))
     }
 
-    async fn init_keyboard_handler(error_recovery: &Arc<ErrorRecoveryManager>) -> Result<Arc<KeyboardHandler>> {
+    async fn init_keyboard_handler(
+        error_recovery: &Arc<ErrorRecoveryManager>,
+    ) -> Result<Arc<KeyboardHandler>> {
         let handler = error_recovery
             .recover_and_retry("keyboard_handler_init", || {
                 Ok(KeyboardHandler::new(HashSet::new()))
@@ -289,10 +300,13 @@ impl TilleRSApp {
         info!("Loading initial configuration...");
 
         // Load configuration with error recovery
-        let _config = self.error_recovery.recover_and_retry("load_config", || {
-            // In a real implementation, this would load the actual configuration
-            Ok(())
-        }).await?;
+        let _config = self
+            .error_recovery
+            .recover_and_retry("load_config", || {
+                // In a real implementation, this would load the actual configuration
+                Ok(())
+            })
+            .await?;
 
         debug!("Initial configuration loaded");
         Ok(())
@@ -302,10 +316,10 @@ impl TilleRSApp {
         info!("Ensuring default workspace exists...");
 
         let workspace_count = self.workspace_manager.get_workspace_count().await;
-        
+
         if workspace_count == 0 {
             info!("No workspaces found, creating default workspace");
-            
+
             // This would use the actual workspace creation API
             // For now, we'll just log the intention
             debug!("Default workspace would be created here");
@@ -320,9 +334,12 @@ impl TilleRSApp {
         debug!("Performing health check...");
 
         let health_status = self.error_recovery.get_health_status().await?;
-        
+
         if !health_status.is_healthy() {
-            warn!("System health issues detected: {}", health_status.description());
+            warn!(
+                "System health issues detected: {}",
+                health_status.description()
+            );
         }
 
         Ok(())
@@ -351,7 +368,7 @@ impl TilleRSApp {
 async fn main() -> Result<()> {
     // Initialize and run the application
     let mut app = TilleRSApp::new().await?;
-    
+
     if let Err(e) = app.run().await {
         error!("Application error: {}", e);
         std::process::exit(1);

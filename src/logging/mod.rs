@@ -216,8 +216,11 @@ pub fn init_logging(config: &LogConfig) -> Result<(), Box<dyn std::error::Error>
             tracing_subscriber::registry()
                 .with(layer.with_filter(filter))
                 .init();
-            
-            warn!("Both stdout and file logging requested, defaulting to stdout. File path: {}", file_path);
+
+            warn!(
+                "Both stdout and file logging requested, defaulting to stdout. File path: {}",
+                file_path
+            );
         }
         (LogOutput::File, None) | (LogOutput::Both, None) => {
             return Err("File path required for file output".into());
@@ -232,7 +235,7 @@ pub fn init_logging(config: &LogConfig) -> Result<(), Box<dyn std::error::Error>
 fn create_filter(config: &LogConfig) -> Result<EnvFilter, Box<dyn std::error::Error>> {
     let base_level = match config.level {
         LogLevel::Trace => "trace",
-        LogLevel::Debug => "debug", 
+        LogLevel::Debug => "debug",
         LogLevel::Info => "info",
         LogLevel::Warn => "warn",
         LogLevel::Error => "error",
@@ -240,7 +243,7 @@ fn create_filter(config: &LogConfig) -> Result<EnvFilter, Box<dyn std::error::Er
 
     // Start with the base level for our crate
     let mut filter_str = format!("tillers={}", base_level);
-    
+
     // Add performance tracing for specific modules if enabled
     if config.performance_tracing {
         filter_str.push_str(",tillers::services::workspace_manager=trace");
@@ -249,14 +252,15 @@ fn create_filter(config: &LogConfig) -> Result<EnvFilter, Box<dyn std::error::Er
     }
 
     // Allow environment override
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(filter_str));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(filter_str));
 
     Ok(filter)
 }
 
 /// Create a stdout logging layer
-fn create_stdout_layer(config: &LogConfig) -> Box<dyn Layer<tracing_subscriber::Registry> + Send + Sync> {
+fn create_stdout_layer(
+    config: &LogConfig,
+) -> Box<dyn Layer<tracing_subscriber::Registry> + Send + Sync> {
     match config.format {
         LogFormat::Pretty => {
             let layer = fmt::layer()
@@ -265,7 +269,7 @@ fn create_stdout_layer(config: &LogConfig) -> Box<dyn Layer<tracing_subscriber::
                 .with_thread_names(config.include_thread_names)
                 .with_file(config.include_source)
                 .with_line_number(config.include_source);
-            
+
             Box::new(layer)
         }
         LogFormat::Compact => {
@@ -275,7 +279,7 @@ fn create_stdout_layer(config: &LogConfig) -> Box<dyn Layer<tracing_subscriber::
                 .with_thread_names(config.include_thread_names)
                 .with_file(config.include_source)
                 .with_line_number(config.include_source);
-            
+
             Box::new(layer)
         }
         LogFormat::Json => {
@@ -285,14 +289,18 @@ fn create_stdout_layer(config: &LogConfig) -> Box<dyn Layer<tracing_subscriber::
                 .with_thread_names(config.include_thread_names)
                 .with_file(config.include_source)
                 .with_line_number(config.include_source);
-            
+
             Box::new(layer)
         }
     }
 }
 
 /// Create a file logging layer
-fn create_file_layer(config: &LogConfig, file_path: &str) -> Result<Box<dyn Layer<tracing_subscriber::Registry> + Send + Sync>, Box<dyn std::error::Error>> {
+fn create_file_layer(
+    config: &LogConfig,
+    file_path: &str,
+) -> Result<Box<dyn Layer<tracing_subscriber::Registry> + Send + Sync>, Box<dyn std::error::Error>>
+{
     let file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -307,7 +315,7 @@ fn create_file_layer(config: &LogConfig, file_path: &str) -> Result<Box<dyn Laye
                 .with_thread_names(config.include_thread_names)
                 .with_file(config.include_source)
                 .with_line_number(config.include_source);
-            
+
             Ok(Box::new(layer))
         }
         LogFormat::Compact => {
@@ -318,7 +326,7 @@ fn create_file_layer(config: &LogConfig, file_path: &str) -> Result<Box<dyn Laye
                 .with_thread_names(config.include_thread_names)
                 .with_file(config.include_source)
                 .with_line_number(config.include_source);
-            
+
             Ok(Box::new(layer))
         }
         LogFormat::Json => {
@@ -329,7 +337,7 @@ fn create_file_layer(config: &LogConfig, file_path: &str) -> Result<Box<dyn Laye
                 .with_thread_names(config.include_thread_names)
                 .with_file(config.include_source)
                 .with_line_number(config.include_source);
-            
+
             Ok(Box::new(layer))
         }
     }
@@ -338,24 +346,22 @@ fn create_file_layer(config: &LogConfig, file_path: &str) -> Result<Box<dyn Laye
 /// Performance tracing macros for critical operations
 #[macro_export]
 macro_rules! trace_performance {
-    ($name:expr, $block:block) => {
-        {
-            let span = tracing::info_span!("performance", operation = $name);
-            let _enter = span.enter();
-            let start = std::time::Instant::now();
-            
-            let result = $block;
-            
-            let duration = start.elapsed();
-            tracing::info!(
-                operation = $name,
-                duration_ms = duration.as_millis(),
-                "Performance trace"
-            );
-            
-            result
-        }
-    };
+    ($name:expr, $block:block) => {{
+        let span = tracing::info_span!("performance", operation = $name);
+        let _enter = span.enter();
+        let start = std::time::Instant::now();
+
+        let result = $block;
+
+        let duration = start.elapsed();
+        tracing::info!(
+            operation = $name,
+            duration_ms = duration.as_millis(),
+            "Performance trace"
+        );
+
+        result
+    }};
 }
 
 /// Initialize logging for testing environments
@@ -363,7 +369,7 @@ macro_rules! trace_performance {
 pub fn init_test_logging() {
     use std::sync::Once;
     static INIT: Once = Once::new();
-    
+
     INIT.call_once(|| {
         let config = LogConfig {
             level: LogLevel::Debug,
@@ -374,7 +380,7 @@ pub fn init_test_logging() {
             include_thread_names: false,
             performance_tracing: true,
         };
-        
+
         if let Err(e) = init_logging(&config) {
             eprintln!("Failed to initialize test logging: {}", e);
         }
@@ -422,12 +428,12 @@ mod tests {
     #[test]
     fn test_performance_macro() {
         init_test_logging();
-        
+
         let result = trace_performance!("test_operation", {
             std::thread::sleep(std::time::Duration::from_millis(10));
             42
         });
-        
+
         assert_eq!(result, 42);
     }
 }

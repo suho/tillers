@@ -34,10 +34,19 @@
     
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2025 TilleRS Team. All rights reserved.</string>
-    
+
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
-    
+
+    <key>NSAppleEventsUsageDescription</key>
+    <string>TilleRS needs Accessibility access to manage application windows.</string>
+
+    <key>NSInputMonitoringUsageDescription</key>
+    <string>TilleRS listens for global keyboard shortcuts to organize windows.</string>
+
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>Allow TilleRS to capture screen contents for advanced window detection.</string>
+
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.productivity</string>
 </dict>

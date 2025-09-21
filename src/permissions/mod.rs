@@ -4,7 +4,7 @@ use crate::Result;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use thiserror::Error;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 /// Errors related to permission checking and management
 #[derive(Error, Debug)]
@@ -73,9 +73,7 @@ impl Default for PermissionConfig {
                 PermissionType::Accessibility,
                 PermissionType::InputMonitoring,
             ],
-            optional_permissions: vec![
-                PermissionType::ScreenRecording,
-            ],
+            optional_permissions: vec![PermissionType::ScreenRecording],
         }
     }
 }
@@ -98,33 +96,41 @@ impl PermissionChecker {
     }
 
     /// Check all required and optional permissions
-    pub async fn check_all_permissions(&mut self) -> Result<HashMap<PermissionType, PermissionStatus>> {
+    pub async fn check_all_permissions(
+        &mut self,
+    ) -> Result<HashMap<PermissionType, PermissionStatus>> {
         let mut results = HashMap::new();
-        
+
         // Check required permissions
         for permission in self.config.required_permissions.clone() {
             let status = self.check_permission(permission.clone()).await?;
             results.insert(permission, status);
         }
-        
+
         // Check optional permissions
         for permission in self.config.optional_permissions.clone() {
             let status = self.check_permission(permission.clone()).await?;
             results.insert(permission, status);
         }
-        
+
         self.last_check = Some(Instant::now());
         info!("Permission check completed: {:?}", results);
-        
+
         Ok(results)
     }
 
     /// Check a specific permission status
-    pub async fn check_permission(&mut self, permission: PermissionType) -> Result<PermissionStatus> {
+    pub async fn check_permission(
+        &mut self,
+        permission: PermissionType,
+    ) -> Result<PermissionStatus> {
         // Check cache first
         if let Some((status, timestamp)) = self.status_cache.get(&permission) {
             if timestamp.elapsed() < self.config.check_interval {
-                debug!("Using cached permission status for {}: {:?}", permission, status);
+                debug!(
+                    "Using cached permission status for {}: {:?}",
+                    permission, status
+                );
                 return Ok(status.clone());
             }
         }
@@ -136,8 +142,9 @@ impl PermissionChecker {
         };
 
         // Update cache
-        self.status_cache.insert(permission.clone(), (status.clone(), Instant::now()));
-        
+        self.status_cache
+            .insert(permission.clone(), (status.clone(), Instant::now()));
+
         debug!("Permission check for {}: {:?}", permission, status);
         Ok(status)
     }
@@ -147,11 +154,14 @@ impl PermissionChecker {
         for permission in self.config.required_permissions.clone() {
             let status = self.check_permission(permission.clone()).await?;
             if status != PermissionStatus::Granted {
-                warn!("Required permission {} not granted: {:?}", permission, status);
+                warn!(
+                    "Required permission {} not granted: {:?}",
+                    permission, status
+                );
                 return Ok(false);
             }
         }
-        
+
         info!("All required permissions are granted");
         Ok(true)
     }
@@ -164,14 +174,16 @@ impl PermissionChecker {
         }
 
         let statuses = self.check_all_permissions().await?;
-        
+
         for (permission, status) in statuses {
-            if self.config.required_permissions.contains(&permission) && status != PermissionStatus::Granted {
+            if self.config.required_permissions.contains(&permission)
+                && status != PermissionStatus::Granted
+            {
                 info!("Requesting required permission: {}", permission);
                 self.request_permission(permission).await?;
             }
         }
-        
+
         Ok(())
     }
 
@@ -187,42 +199,39 @@ impl PermissionChecker {
     /// Get user-friendly instructions for enabling a permission
     pub fn get_permission_instructions(&self, permission: &PermissionType) -> String {
         match permission {
-            PermissionType::Accessibility => {
-                "To enable TilleRS window management:\n\
+            PermissionType::Accessibility => "To enable TilleRS window management:\n\
                 1. Open System Preferences > Security & Privacy > Privacy\n\
                 2. Select 'Accessibility' from the list\n\
                 3. Click the lock icon and enter your password\n\
                 4. Check the box next to 'TilleRS'\n\
-                5. Restart TilleRS".to_string()
-            }
-            PermissionType::InputMonitoring => {
-                "To enable TilleRS keyboard shortcuts:\n\
+                5. Restart TilleRS"
+                .to_string(),
+            PermissionType::InputMonitoring => "To enable TilleRS keyboard shortcuts:\n\
                 1. Open System Preferences > Security & Privacy > Privacy\n\
                 2. Select 'Input Monitoring' from the list\n\
                 3. Click the lock icon and enter your password\n\
                 4. Check the box next to 'TilleRS'\n\
-                5. Restart TilleRS".to_string()
-            }
-            PermissionType::ScreenRecording => {
-                "To enable advanced window detection (optional):\n\
+                5. Restart TilleRS"
+                .to_string(),
+            PermissionType::ScreenRecording => "To enable advanced window detection (optional):\n\
                 1. Open System Preferences > Security & Privacy > Privacy\n\
                 2. Select 'Screen Recording' from the list\n\
                 3. Click the lock icon and enter your password\n\
                 4. Check the box next to 'TilleRS'\n\
-                5. Restart TilleRS".to_string()
-            }
+                5. Restart TilleRS"
+                .to_string(),
         }
     }
 
     /// Get a summary of current permission status
     pub async fn get_permission_summary(&mut self) -> Result<PermissionSummary> {
         let statuses = self.check_all_permissions().await?;
-        
+
         let mut required_granted = 0;
         let required_total = self.config.required_permissions.len();
         let mut optional_granted = 0;
         let optional_total = self.config.optional_permissions.len();
-        
+
         for (permission, status) in &statuses {
             if status == &PermissionStatus::Granted {
                 if self.config.required_permissions.contains(permission) {
@@ -232,10 +241,10 @@ impl PermissionChecker {
                 }
             }
         }
-        
+
         let all_required_granted = required_granted == required_total;
         let can_function = all_required_granted;
-        
+
         Ok(PermissionSummary {
             all_required_granted,
             can_function,
@@ -250,89 +259,163 @@ impl PermissionChecker {
     // Platform-specific permission checking methods
 
     async fn check_accessibility_permission(&self) -> Result<PermissionStatus> {
-        // On macOS, we use the AXIsProcessTrusted() function from the Accessibility framework
-        // This is a simplified version - in a real implementation, this would use proper FFI
-        
         debug!("Checking accessibility permission");
-        
-        // Simulate permission check - in real implementation, this would call:
-        // let trusted = unsafe { AXIsProcessTrusted() };
-        let trusted = self.simulate_permission_check("accessibility");
-        
-        if trusted {
-            Ok(PermissionStatus::Granted)
+
+        let granted = {
+            #[cfg(target_os = "macos")]
+            {
+                crate::macos::permissions::is_accessibility_permission_granted()?
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                self.simulate_permission_check("accessibility")
+            }
+        };
+
+        Ok(if granted {
+            PermissionStatus::Granted
         } else {
-            Ok(PermissionStatus::Denied)
-        }
+            PermissionStatus::Denied
+        })
     }
 
     async fn check_input_monitoring_permission(&self) -> Result<PermissionStatus> {
         debug!("Checking input monitoring permission");
-        
-        // On macOS, input monitoring permission can be checked by attempting to create
-        // a global event tap and seeing if it succeeds
-        // This is a simplified version - in real implementation, this would use Core Graphics
-        
-        let granted = self.simulate_permission_check("input_monitoring");
-        
-        if granted {
-            Ok(PermissionStatus::Granted)
+
+        let granted = {
+            #[cfg(target_os = "macos")]
+            {
+                crate::macos::permissions::is_input_monitoring_permission_granted()?
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                self.simulate_permission_check("input_monitoring")
+            }
+        };
+
+        Ok(if granted {
+            PermissionStatus::Granted
         } else {
-            Ok(PermissionStatus::Denied)
-        }
+            PermissionStatus::Denied
+        })
     }
 
     async fn check_screen_recording_permission(&self) -> Result<PermissionStatus> {
         debug!("Checking screen recording permission");
-        
-        // Screen recording permission can be checked by attempting to capture a small
-        // portion of the screen and seeing if it succeeds
-        // This is a simplified version
-        
-        let granted = self.simulate_permission_check("screen_recording");
-        
-        if granted {
-            Ok(PermissionStatus::Granted)
+
+        let granted = {
+            #[cfg(target_os = "macos")]
+            {
+                crate::macos::permissions::is_screen_recording_permission_granted()?
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                self.simulate_permission_check("screen_recording")
+            }
+        };
+
+        Ok(if granted {
+            PermissionStatus::Granted
         } else {
-            Ok(PermissionStatus::Denied)
-        }
+            PermissionStatus::Denied
+        })
     }
 
     async fn request_accessibility_permission(&self) -> Result<()> {
         info!("Requesting accessibility permission");
-        
-        // On macOS, requesting accessibility permission involves:
-        // 1. Calling AXIsProcessTrusted() with a prompt option
-        // 2. This will show a system dialog directing user to System Preferences
-        
-        // Simulate permission request
-        println!("Please grant Accessibility permission in System Preferences");
-        Ok(())
+
+        #[cfg(target_os = "macos")]
+        {
+            let granted = crate::macos::permissions::prompt_accessibility_permission()?;
+            if !granted {
+                warn!("Accessibility permission not yet granted after prompt");
+                if let Err(err) = crate::macos::permissions::open_privacy_pane(
+                    crate::macos::permissions::PrivacyPane::Accessibility,
+                ) {
+                    error!("Failed to open Accessibility privacy pane: {err}");
+                }
+            }
+            return Ok(());
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            println!("Please grant Accessibility permission in System Preferences");
+            Ok(())
+        }
     }
 
     async fn request_input_monitoring_permission(&self) -> Result<()> {
         info!("Requesting input monitoring permission");
-        
-        // Input monitoring permission request involves attempting to create
-        // a global event tap, which will trigger the permission dialog
-        
-        // Simulate permission request
-        println!("Please grant Input Monitoring permission in System Preferences");
-        Ok(())
+
+        #[cfg(target_os = "macos")]
+        {
+            match crate::macos::permissions::prompt_input_monitoring_permission() {
+                Ok(true) => (),
+                Ok(false) => {
+                    warn!("Input Monitoring permission denied");
+                    if let Err(err) = crate::macos::permissions::open_privacy_pane(
+                        crate::macos::permissions::PrivacyPane::InputMonitoring,
+                    ) {
+                        error!("Failed to open Input Monitoring privacy pane: {err}");
+                    }
+                }
+                Err(err) => {
+                    error!("Failed to request Input Monitoring access: {err}");
+                    crate::macos::permissions::open_privacy_pane(
+                        crate::macos::permissions::PrivacyPane::InputMonitoring,
+                    )
+                    .ok();
+                }
+            }
+            return Ok(());
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            println!("Please grant Input Monitoring permission in System Preferences");
+            Ok(())
+        }
     }
 
     async fn request_screen_recording_permission(&self) -> Result<()> {
         info!("Requesting screen recording permission");
-        
-        // Screen recording permission request involves attempting to capture
-        // the screen, which will trigger the permission dialog
-        
-        // Simulate permission request
-        println!("Please grant Screen Recording permission in System Preferences");
-        Ok(())
+
+        #[cfg(target_os = "macos")]
+        {
+            match crate::macos::permissions::prompt_screen_recording_permission() {
+                Ok(true) => (),
+                Ok(false) => {
+                    warn!("Screen Recording permission denied");
+                    if let Err(err) = crate::macos::permissions::open_privacy_pane(
+                        crate::macos::permissions::PrivacyPane::ScreenRecording,
+                    ) {
+                        error!("Failed to open Screen Recording privacy pane: {err}");
+                    }
+                }
+                Err(err) => {
+                    error!("Failed to request Screen Recording access: {err}");
+                    crate::macos::permissions::open_privacy_pane(
+                        crate::macos::permissions::PrivacyPane::ScreenRecording,
+                    )
+                    .ok();
+                }
+            }
+            return Ok(());
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            println!("Please grant Screen Recording permission in System Preferences");
+            Ok(())
+        }
     }
 
     // Simulation method for testing - would be replaced with actual macOS API calls
+    #[cfg(not(target_os = "macos"))]
     fn simulate_permission_check(&self, permission_name: &str) -> bool {
         // For simulation purposes, check if environment variable is set
         let env_var = format!("TILLERS_PERMISSION_{}", permission_name.to_uppercase());
@@ -365,8 +448,10 @@ impl PermissionSummary {
         if self.all_required_granted {
             format!(
                 "All permissions granted ({}/{} required, {}/{} optional)",
-                self.required_granted, self.required_total,
-                self.optional_granted, self.optional_total
+                self.required_granted,
+                self.required_total,
+                self.optional_granted,
+                self.optional_total
             )
         } else {
             format!(
@@ -407,16 +492,22 @@ mod tests {
     async fn test_permission_check_with_env() {
         env::set_var("TILLERS_PERMISSION_ACCESSIBILITY", "true");
         env::set_var("TILLERS_PERMISSION_INPUT_MONITORING", "false");
-        
+
         let config = PermissionConfig::default();
         let mut checker = PermissionChecker::new(config);
-        
-        let accessibility_status = checker.check_permission(PermissionType::Accessibility).await.unwrap();
+
+        let accessibility_status = checker
+            .check_permission(PermissionType::Accessibility)
+            .await
+            .unwrap();
         assert_eq!(accessibility_status, PermissionStatus::Granted);
-        
-        let input_status = checker.check_permission(PermissionType::InputMonitoring).await.unwrap();
+
+        let input_status = checker
+            .check_permission(PermissionType::InputMonitoring)
+            .await
+            .unwrap();
         assert_eq!(input_status, PermissionStatus::Denied);
-        
+
         // Clean up
         env::remove_var("TILLERS_PERMISSION_ACCESSIBILITY");
         env::remove_var("TILLERS_PERMISSION_INPUT_MONITORING");
@@ -426,13 +517,13 @@ mod tests {
     async fn test_all_required_permissions_check() {
         env::set_var("TILLERS_PERMISSION_ACCESSIBILITY", "true");
         env::set_var("TILLERS_PERMISSION_INPUT_MONITORING", "true");
-        
+
         let config = PermissionConfig::default();
         let mut checker = PermissionChecker::new(config);
-        
+
         let all_granted = checker.all_required_permissions_granted().await.unwrap();
         assert!(all_granted);
-        
+
         // Clean up
         env::remove_var("TILLERS_PERMISSION_ACCESSIBILITY");
         env::remove_var("TILLERS_PERMISSION_INPUT_MONITORING");
@@ -442,16 +533,16 @@ mod tests {
     async fn test_permission_summary() {
         env::set_var("TILLERS_PERMISSION_ACCESSIBILITY", "true");
         env::set_var("TILLERS_PERMISSION_INPUT_MONITORING", "false");
-        
+
         let config = PermissionConfig::default();
         let mut checker = PermissionChecker::new(config);
-        
+
         let summary = checker.get_permission_summary().await.unwrap();
         assert!(!summary.all_required_granted);
         assert!(!summary.can_function);
         assert_eq!(summary.required_granted, 1);
         assert_eq!(summary.required_total, 2);
-        
+
         // Clean up
         env::remove_var("TILLERS_PERMISSION_ACCESSIBILITY");
         env::remove_var("TILLERS_PERMISSION_INPUT_MONITORING");
@@ -461,7 +552,7 @@ mod tests {
     fn test_permission_instructions() {
         let config = PermissionConfig::default();
         let checker = PermissionChecker::new(config);
-        
+
         let instructions = checker.get_permission_instructions(&PermissionType::Accessibility);
         assert!(instructions.contains("Accessibility"));
         assert!(instructions.contains("System Preferences"));

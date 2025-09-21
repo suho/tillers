@@ -6,25 +6,24 @@
 use crate::{
     cli::run_cli,
     error_recovery::ErrorRecoveryManager,
-    logging::{LogConfig, init_logging},
+    logging::{init_logging, LogConfig},
     permissions::PermissionChecker,
-    services::{WorkspaceManager, WindowManager, KeyboardHandler, TilingEngine},
-    ui::{SystemTrayManager, SystemTrayConfig},
+    services::{KeyboardHandler, TilingEngine, WindowManager, WorkspaceManager},
+    ui::{SystemTrayConfig, SystemTrayManager},
     Result, TilleRSError,
 };
+use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
 use tokio::{
-    fs,
-    signal,
-    sync::{broadcast, RwLock, Mutex},
+    fs, signal,
+    sync::{broadcast, Mutex, RwLock},
     time::sleep,
 };
-use tracing::{debug, info, warn, error, instrument};
-use serde::{Deserialize, Serialize};
+use tracing::{debug, error, info, instrument, warn};
 
 /// Application lifecycle configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,24 +118,24 @@ impl Default for PerformanceMetrics {
 pub struct LifecycleManager {
     config: LifecycleConfig,
     operation_mode: OperationMode,
-    
+
     // Core services
     workspace_manager: Arc<WorkspaceManager>,
     window_manager: Arc<WindowManager>,
     _keyboard_handler: Arc<KeyboardHandler>,
     _tiling_engine: Arc<TilingEngine>,
-    
+
     // Support services
     permission_checker: Arc<RwLock<PermissionChecker>>,
     error_recovery: Arc<ErrorRecoveryManager>,
-    
+
     // UI components
     system_tray: Option<Arc<Mutex<SystemTrayManager>>>,
-    
+
     // Lifecycle management
     shutdown_signal: Arc<Mutex<Option<broadcast::Sender<()>>>>,
     _start_time: Instant,
-    
+
     // State tracking
     application_state: Arc<RwLock<ApplicationState>>,
     performance_metrics: Arc<RwLock<PerformanceMetrics>>,
@@ -270,31 +269,30 @@ impl LifecycleManager {
 
     async fn initialize_logging(&self) -> Result<()> {
         let log_config = LogConfig::from_env();
-        init_logging(&log_config)
-            .map_err(|e| TilleRSError::ConfigurationError(format!("Failed to initialize logging: {}", e)))?;
-        
+        init_logging(&log_config).map_err(|e| {
+            TilleRSError::ConfigurationError(format!("Failed to initialize logging: {}", e))
+        })?;
+
         info!("TilleRS v{} starting up", env!("CARGO_PKG_VERSION"));
         info!("Operation mode: {:?}", self.operation_mode);
-        
+
         Ok(())
     }
 
     async fn load_persisted_state(&mut self) -> Result<()> {
         let state_file = self.get_state_file_path();
-        
+
         if state_file.exists() {
             match fs::read_to_string(&state_file).await {
-                Ok(content) => {
-                    match serde_json::from_str::<ApplicationState>(&content) {
-                        Ok(state) => {
-                            *self.application_state.write().await = state;
-                            info!("Loaded persisted application state from {:?}", state_file);
-                        }
-                        Err(e) => {
-                            warn!("Failed to parse state file: {}", e);
-                        }
+                Ok(content) => match serde_json::from_str::<ApplicationState>(&content) {
+                    Ok(state) => {
+                        *self.application_state.write().await = state;
+                        info!("Loaded persisted application state from {:?}", state_file);
                     }
-                }
+                    Err(e) => {
+                        warn!("Failed to parse state file: {}", e);
+                    }
+                },
                 Err(e) => {
                     warn!("Failed to read state file: {}", e);
                 }
@@ -302,13 +300,13 @@ impl LifecycleManager {
         } else {
             debug!("No persisted state file found, starting fresh");
         }
-        
+
         Ok(())
     }
 
     async fn initialize_system_tray(&mut self) -> Result<()> {
         info!("Initializing system tray...");
-        
+
         let tray_config = SystemTrayConfig::default();
         let mut tray_manager = SystemTrayManager::new(
             tray_config,
@@ -320,7 +318,7 @@ impl LifecycleManager {
 
         tray_manager.initialize().await?;
         self.system_tray = Some(Arc::new(Mutex::new(tray_manager)));
-        
+
         debug!("System tray initialized");
         Ok(())
     }
@@ -333,17 +331,18 @@ impl LifecycleManager {
         tokio::spawn(async move {
             #[cfg(unix)]
             {
-                let mut sigterm_stream = match signal::unix::signal(signal::unix::SignalKind::terminate()) {
-                    Ok(stream) => stream,
-                    Err(e) => {
-                        warn!("Failed to initialise SIGTERM handler: {}", e);
-                        match signal::ctrl_c().await {
-                            Ok(_) => info!("Received SIGINT (Ctrl+C)"),
-                            Err(err) => warn!("Failed to listen for Ctrl+C: {}", err),
+                let mut sigterm_stream =
+                    match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+                        Ok(stream) => stream,
+                        Err(e) => {
+                            warn!("Failed to initialise SIGTERM handler: {}", e);
+                            match signal::ctrl_c().await {
+                                Ok(_) => info!("Received SIGINT (Ctrl+C)"),
+                                Err(err) => warn!("Failed to listen for Ctrl+C: {}", err),
+                            }
+                            return;
                         }
-                        return;
-                    }
-                };
+                    };
 
                 tokio::select! {
                     res = signal::ctrl_c() => {
@@ -404,12 +403,12 @@ impl LifecycleManager {
         tokio::spawn(async move {
             loop {
                 sleep(interval).await;
-                
+
                 match error_recovery.get_health_status().await {
                     Ok(health) => {
                         let mut state = application_state.write().await;
                         state.last_health_check = Some(chrono::Utc::now().to_rfc3339());
-                        
+
                         if !health.is_healthy() {
                             warn!("Health check detected issues: {}", health.description());
                         }
@@ -430,9 +429,9 @@ impl LifecycleManager {
         tokio::spawn(async move {
             loop {
                 sleep(interval).await;
-                
+
                 let state = application_state.read().await.clone();
-                
+
                 match serde_json::to_string_pretty(&state) {
                     Ok(json) => {
                         if let Err(e) = fs::write(&state_file, json).await {
@@ -451,17 +450,17 @@ impl LifecycleManager {
 
     async fn start_metrics_collection_task(&self) {
         let performance_metrics = self.performance_metrics.clone();
-        
+
         tokio::spawn(async move {
             loop {
                 sleep(Duration::from_secs(60)).await; // Collect metrics every minute
-                
+
                 // Collect system metrics
                 let memory_usage = Self::get_memory_usage().await;
-                
+
                 let mut metrics = performance_metrics.write().await;
                 metrics.memory_usage_mb = memory_usage;
-                
+
                 debug!("Performance metrics updated: memory={}MB", memory_usage);
             }
         });
@@ -471,7 +470,7 @@ impl LifecycleManager {
         tokio::spawn(async move {
             loop {
                 sleep(Duration::from_secs(5)).await;
-                
+
                 if let Err(e) = tray.lock().await.update_status().await {
                     warn!("Failed to update system tray: {}", e);
                 }
@@ -481,20 +480,17 @@ impl LifecycleManager {
 
     async fn run_cli_mode(&self) -> Result<()> {
         info!("Running in CLI mode");
-        
-        run_cli(
-            self.workspace_manager.clone(),
-            self.error_recovery.clone(),
-        ).await
+
+        run_cli(self.workspace_manager.clone(), self.error_recovery.clone()).await
     }
 
     async fn run_daemon_mode(&self) -> Result<()> {
         info!("Running in daemon mode");
-        
+
         // In daemon mode, we run indefinitely until shutdown
         if let Some(sender) = self.shutdown_signal.lock().await.as_ref() {
             let mut shutdown_rx = sender.subscribe();
-            
+
             loop {
                 tokio::select! {
                     _ = shutdown_rx.recv() => {
@@ -508,29 +504,29 @@ impl LifecycleManager {
                 }
             }
         }
-        
+
         Ok(())
     }
 
     async fn run_service_mode(&self) -> Result<()> {
         info!("Running in service mode");
-        
+
         // Service mode is similar to daemon but with different lifecycle expectations
         if let Some(sender) = self.shutdown_signal.lock().await.as_ref() {
             let mut shutdown_rx = sender.subscribe();
             shutdown_rx.recv().await.ok();
         }
-        
+
         Ok(())
     }
 
     async fn save_application_state(&self) -> Result<()> {
         let state = self.application_state.read().await.clone();
         let state_file = self.get_state_file_path();
-        
+
         let json = serde_json::to_string_pretty(&state)?;
         fs::write(state_file, json).await?;
-        
+
         debug!("Application state saved");
         Ok(())
     }
@@ -559,7 +555,7 @@ impl LifecycleManager {
 /// Determine the appropriate operation mode based on command line arguments
 pub fn determine_operation_mode() -> OperationMode {
     let args: Vec<String> = std::env::args().collect();
-    
+
     // Check if any CLI subcommands are present
     if args.len() > 1 && !args[1].starts_with('-') {
         match args[1].as_str() {
@@ -569,7 +565,7 @@ pub fn determine_operation_mode() -> OperationMode {
             _ => {}
         }
     }
-    
+
     // Check for daemon/service flags
     if args.iter().any(|arg| arg == "--daemon" || arg == "-d") {
         OperationMode::Daemon
@@ -593,10 +589,13 @@ mod tests {
         // Test CLI mode detection
         std::env::set_var("ARGV", "tillers workspace list");
         // In a real test, we'd mock std::env::args()
-        
+
         let mode = determine_operation_mode();
         // The actual implementation depends on command line parsing
-        assert!(matches!(mode, OperationMode::Daemon | OperationMode::Cli | OperationMode::Service));
+        assert!(matches!(
+            mode,
+            OperationMode::Daemon | OperationMode::Cli | OperationMode::Service
+        ));
     }
 
     #[test]
@@ -626,7 +625,7 @@ mod tests {
 
         let json = serde_json::to_string(&state).unwrap();
         let deserialized: ApplicationState = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(state.start_time, deserialized.start_time);
         assert_eq!(state.operation_mode, deserialized.operation_mode);
     }

@@ -1,6 +1,6 @@
 use crate::{Result, TilleRSError};
-use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 /// Two-dimensional point used for window positioning
 #[derive(Debug, Clone, Copy, PartialEq)]

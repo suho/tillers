@@ -31,6 +31,97 @@ cp target/release/tillers /usr/local/bin/
 After installation, run the binary once so macOS prompts for Accessibility and Input Monitoring
 permissions. Grant both permissions and relaunch the app.
 
+## Create a macOS .app Bundle
+
+Packaging the binary as `TilleRS.app` ensures macOS privacy prompts are associated with the bundle
+and lets you pin the app in Launchpad or the Dock.
+
+> **Shortcut**: run `scripts/package_app.sh --version <semver>` after each release build. The script
+> performs every step below, signs the bundle with an ad-hoc identity (no Developer ID required),
+> and clears the `com.apple.quarantine` attribute using the system `xattr` (or Homebrew's copy if
+> available).
+
+1. **Build a release binary**
+   ```bash
+   cargo build --release
+   ```
+   Keep the resulting binary at `target/release/tillers`.
+
+2. **Create the bundle skeleton**
+   ```bash
+   APP=target/release/TilleRS.app
+   mkdir -p "$APP/Contents/MacOS"
+   mkdir -p "$APP/Contents/Resources"
+   ```
+
+3. **Copy bundle metadata and assets**
+   ```bash
+   cp resources/Info.plist "$APP/Contents/Info.plist"
+   cp resources/entitlements.plist "$APP/Contents/Resources/entitlements.plist"
+   ```
+   Add icons or other assets to `Contents/Resources` as needed (e.g., `AppIcon.icns`).
+
+4. **Install the executable**
+   ```bash
+   cp target/release/tillers "$APP/Contents/MacOS/TilleRS"
+   chmod +x "$APP/Contents/MacOS/TilleRS"
+   ```
+
+5. **Code sign the bundle**
+   - Sign the main executable with the desired entitlements:
+     ```bash
+     codesign \
+       --force --options runtime \
+       --entitlements "$APP/Contents/Resources/entitlements.plist" \
+       --sign - "$APP/Contents/MacOS/TilleRS"
+     ```
+   - Then sign the container so macOS trusts the bundle structure:
+     ```bash
+     codesign --force --sign - "$APP"
+     ```
+   - Replace `-` with your Developer ID certificate name when you are ready to distribute.
+
+6. **Verify and launch**
+   ```bash
+   codesign --verify --deep --strict --verbose=2 "$APP"
+   open "$APP"
+   ```
+   macOS should now display the Accessibility, Input Monitoring, and Screen Recording prompts when
+   needed.
+
+7. **Optional: clear quarantine flags** (if the bundle was downloaded or copied from another
+   machine). The script above does this automatically via `xattr -dr com.apple.quarantine`, but you
+   can run it manually as well:
+   ```bash
+   xattr -cr "$APP"
+   ```
+
+With the bundle in place, drag `TilleRS.app` into `/Applications` or the Dock to keep it handy.
+
+## Homebrew Cask Distribution
+
+To publish `TilleRS.app` via a tap (e.g., `suho/homebrew-tap`), run:
+
+```bash
+scripts/create_cask_release.sh --version 0.3.0 \
+  --download-url "https://github.com/suho/tillers/releases/download/v0.3.0/TilleRS-0.3.0.zip"
+```
+
+The script:
+- builds/signs the bundle using `package_app.sh`
+- produces `target/release/TilleRS-0.3.0.zip` (ad-hoc signed, quarantine cleared)
+- writes a cask template to `target/release/tillers.cask.rb`
+
+Copy the generated cask into `suho/homebrew-tap/Casks/tillers.rb`, adjust the URL if needed, and
+push the tap. End users can then install with:
+
+```bash
+brew install --cask suho/tap/tillers
+```
+
+Because the bundle is not notarized, the first launch still requires the standard right-click →
+Open confirmation even though Homebrew removes `com.apple.quarantine`.
+
 ## Option-Key Defaults
 
 The project standardises on Option-based shortcuts to avoid conflicts with system Command shortcuts.

@@ -1,10 +1,10 @@
-use crate::models::TilingPattern;
 use crate::models::keyboard_mapping::ActionParameters;
+use crate::models::TilingPattern;
 use crate::services::{
-    keyboard_handler::{KeyboardHandler, KeyboardEvent},
+    keyboard_handler::{KeyboardEvent, KeyboardHandler},
     tiling_engine::{TilingEngine, WindowLayout},
     window_manager::{WindowInfo, WindowManager, WindowMode},
-    workspace_manager::{WorkspaceManager, WorkspaceEvent},
+    workspace_manager::{WorkspaceEvent, WorkspaceManager},
 };
 use crate::{Result, TilleRSError};
 use std::collections::HashMap;
@@ -112,7 +112,8 @@ impl WorkspaceOrchestrator {
                 return Err(TilleRSError::ConfigurationError(format!(
                     "Tiling pattern {} not found",
                     workspace.tiling_pattern_id
-                )).into());
+                ))
+                .into());
             }
         };
         drop(patterns);
@@ -120,7 +121,10 @@ impl WorkspaceOrchestrator {
         // Get windows to tile
         let windows = self.get_tileable_windows().await?;
         if windows.is_empty() {
-            debug!("No tileable windows found for workspace '{}'", workspace.name);
+            debug!(
+                "No tileable windows found for workspace '{}'",
+                workspace.name
+            );
             return Ok(());
         }
 
@@ -145,7 +149,10 @@ impl WorkspaceOrchestrator {
 
         // Apply the layouts with a small delay to allow windows to settle
         if self.config.layout_delay_ms > 0 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(self.config.layout_delay_ms)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(
+                self.config.layout_delay_ms,
+            ))
+            .await;
         }
 
         self.apply_window_layouts(&layouts).await?;
@@ -162,7 +169,7 @@ impl WorkspaceOrchestrator {
     /// Get windows that are suitable for tiling
     async fn get_tileable_windows(&self) -> Result<Vec<WindowInfo>> {
         let all_windows = self.window_manager.list_windows(true, None).await?;
-        
+
         let tileable_windows: Vec<WindowInfo> = all_windows
             .into_iter()
             .filter(|window| {
@@ -171,10 +178,10 @@ impl WorkspaceOrchestrator {
                 // - Not fullscreen
                 // - In tiled mode (not floating)
                 // - Have a reasonable size
-                !window.is_minimized 
-                    && !window.is_fullscreen 
+                !window.is_minimized
+                    && !window.is_fullscreen
                     && window.mode == WindowMode::Tiled
-                    && window.size.width > 100.0 
+                    && window.size.width > 100.0
                     && window.size.height > 100.0
             })
             .collect();
@@ -188,13 +195,16 @@ impl WorkspaceOrchestrator {
         // 1. Get the primary monitor bounds
         // 2. Subtract menu bar, dock, and other system UI elements
         // 3. Apply any workspace-specific margins
-        
+
         use crate::macos::accessibility::{Point, Rect, Size};
-        
+
         // Default to a reasonable screen area (this should be replaced with actual monitor detection)
         Ok(Rect {
             origin: Point { x: 0.0, y: 25.0 }, // Account for menu bar
-            size: Size { width: 1920.0, height: 1055.0 }, // 1080p minus menu bar and dock
+            size: Size {
+                width: 1920.0,
+                height: 1055.0,
+            }, // 1080p minus menu bar and dock
         })
     }
 
@@ -206,10 +216,7 @@ impl WorkspaceOrchestrator {
                 .set_window_frame(layout.window_id, layout.frame, true)
                 .await
             {
-                warn!(
-                    "Failed to set frame for window {}: {}",
-                    layout.window_id, e
-                );
+                warn!("Failed to set frame for window {}: {}", layout.window_id, e);
                 // Continue with other windows rather than failing completely
             }
         }
@@ -244,13 +251,16 @@ impl WorkspaceOrchestrator {
         match event {
             WorkspaceEvent::WorkspaceActivated { workspace, .. } => {
                 if self.config.auto_arrange_on_switch && workspace.auto_arrange {
-                    debug!("Auto-arranging windows for activated workspace '{}'", workspace.name);
+                    debug!(
+                        "Auto-arranging windows for activated workspace '{}'",
+                        workspace.name
+                    );
                     self.arrange_current_workspace().await?;
                 }
             }
-            WorkspaceEvent::WorkspaceCreated { .. } 
-            | WorkspaceEvent::WorkspaceUpdated { .. } 
-            | WorkspaceEvent::WorkspaceDeleted { .. } 
+            WorkspaceEvent::WorkspaceCreated { .. }
+            | WorkspaceEvent::WorkspaceUpdated { .. }
+            | WorkspaceEvent::WorkspaceDeleted { .. }
             | WorkspaceEvent::ConfigurationChanged { .. } => {
                 // These events might need different handling in the future
                 debug!("Received workspace event: {:?}", event);
@@ -262,13 +272,15 @@ impl WorkspaceOrchestrator {
     /// Handle keyboard events and dispatch them to appropriate actions
     pub async fn handle_keyboard_event(&self, event: KeyboardEvent) -> Result<()> {
         use crate::models::keyboard_mapping::ActionType;
-        
+
         debug!("Handling keyboard event: {:?}", event);
 
         match event.action {
             ActionType::SwitchWorkspace => {
                 if let ActionParameters::WorkspaceId(workspace_id) = event.parameters {
-                    self.workspace_manager.switch_to_workspace(workspace_id).await?;
+                    self.workspace_manager
+                        .switch_to_workspace(workspace_id)
+                        .await?;
                 } else {
                     // Try to find workspace by position or other criteria
                     self.handle_workspace_switch_by_position().await?;
@@ -276,7 +288,8 @@ impl WorkspaceOrchestrator {
             }
             ActionType::MoveWindow => {
                 if let ActionParameters::WorkspaceId(target_workspace_id) = event.parameters {
-                    self.move_focused_window_to_workspace(target_workspace_id).await?;
+                    self.move_focused_window_to_workspace(target_workspace_id)
+                        .await?;
                 }
             }
             ActionType::MoveWindowToMonitor => {
@@ -330,7 +343,9 @@ impl WorkspaceOrchestrator {
         // This could cycle through workspaces or switch to a default
         let workspaces = self.workspace_manager.get_all_workspaces().await;
         if let Some(first_workspace) = workspaces.first() {
-            self.workspace_manager.switch_to_workspace(first_workspace.id).await?;
+            self.workspace_manager
+                .switch_to_workspace(first_workspace.id)
+                .await?;
         }
         Ok(())
     }
@@ -342,7 +357,10 @@ impl WorkspaceOrchestrator {
         let focused_window = windows.iter().find(|w| w.is_focused);
 
         if let Some(window) = focused_window {
-            info!("Moving window '{}' to workspace {}", window.title, target_workspace_id);
+            info!(
+                "Moving window '{}' to workspace {}",
+                window.title, target_workspace_id
+            );
             // In a full implementation, this would involve:
             // 1. Removing the window from current workspace tracking
             // 2. Adding it to the target workspace
@@ -365,10 +383,10 @@ impl WorkspaceOrchestrator {
     /// Create a new workspace with the given name
     async fn create_new_workspace(&self, name: &str) -> Result<()> {
         use crate::models::WorkspaceCreateRequest;
-        
+
         // Create a unique keyboard shortcut (simplified)
         let shortcut = format!("opt+{}", name.chars().next().unwrap_or('x'));
-        
+
         let request = WorkspaceCreateRequest {
             name: name.to_string(),
             description: Some(format!("Workspace created via keyboard shortcut")),
@@ -379,20 +397,28 @@ impl WorkspaceOrchestrator {
 
         // Get a default pattern ID (simplified - in real implementation would come from config)
         let patterns = self.patterns.read().await;
-        let default_pattern_id = patterns.keys().next().copied()
+        let default_pattern_id = patterns
+            .keys()
+            .next()
+            .copied()
             .unwrap_or_else(|| Uuid::new_v4());
         drop(patterns);
 
-        let workspace_id = self.workspace_manager.create_workspace(request, default_pattern_id).await?;
+        let workspace_id = self
+            .workspace_manager
+            .create_workspace(request, default_pattern_id)
+            .await?;
         info!("Created new workspace '{}' with ID {}", name, workspace_id);
-        
+
         Ok(())
     }
 
     /// Delete the current workspace
     async fn delete_current_workspace(&self) -> Result<()> {
         if let Some(active_workspace) = self.workspace_manager.get_active_workspace().await {
-            self.workspace_manager.delete_workspace(active_workspace.id).await?;
+            self.workspace_manager
+                .delete_workspace(active_workspace.id)
+                .await?;
             info!("Deleted workspace '{}'", active_workspace.name);
         }
         Ok(())
@@ -402,8 +428,13 @@ impl WorkspaceOrchestrator {
     async fn toggle_focused_window_floating(&self) -> Result<()> {
         let windows = self.window_manager.list_windows(true, None).await?;
         if let Some(focused_window) = windows.iter().find(|w| w.is_focused) {
-            self.window_manager.toggle_floating(focused_window.id).await?;
-            info!("Toggled floating mode for window '{}'", focused_window.title);
+            self.window_manager
+                .toggle_floating(focused_window.id)
+                .await?;
+            info!(
+                "Toggled floating mode for window '{}'",
+                focused_window.title
+            );
         }
         Ok(())
     }
@@ -542,14 +573,18 @@ impl WorkspaceOrchestratorBuilder {
     }
 
     pub fn build(self) -> Result<WorkspaceOrchestrator> {
-        let workspace_manager = self.workspace_manager
-            .ok_or_else(|| TilleRSError::ConfigurationError("WorkspaceManager is required".to_string()))?;
-        let window_manager = self.window_manager
-            .ok_or_else(|| TilleRSError::ConfigurationError("WindowManager is required".to_string()))?;
-        let tiling_engine = self.tiling_engine
-            .ok_or_else(|| TilleRSError::ConfigurationError("TilingEngine is required".to_string()))?;
-        let keyboard_handler = self.keyboard_handler
-            .ok_or_else(|| TilleRSError::ConfigurationError("KeyboardHandler is required".to_string()))?;
+        let workspace_manager = self.workspace_manager.ok_or_else(|| {
+            TilleRSError::ConfigurationError("WorkspaceManager is required".to_string())
+        })?;
+        let window_manager = self.window_manager.ok_or_else(|| {
+            TilleRSError::ConfigurationError("WindowManager is required".to_string())
+        })?;
+        let tiling_engine = self.tiling_engine.ok_or_else(|| {
+            TilleRSError::ConfigurationError("TilingEngine is required".to_string())
+        })?;
+        let keyboard_handler = self.keyboard_handler.ok_or_else(|| {
+            TilleRSError::ConfigurationError("KeyboardHandler is required".to_string())
+        })?;
 
         Ok(WorkspaceOrchestrator::new(
             workspace_manager,
@@ -570,14 +605,14 @@ impl Default for WorkspaceOrchestratorBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::workspace_manager::WorkspaceManagerConfig;
     use crate::models::tiling_pattern::{LayoutAlgorithm, ResizeBehavior};
+    use crate::services::workspace_manager::WorkspaceManagerConfig;
 
     #[tokio::test]
     async fn test_orchestrator_creation() {
         let workspace_manager = Arc::new(
             WorkspaceManager::new(WorkspaceManagerConfig::default())
-                .expect("Failed to create workspace manager")
+                .expect("Failed to create workspace manager"),
         );
         let window_manager = Arc::new(WindowManager::with_default_providers());
         let tiling_engine = Arc::new(TilingEngine::new());
@@ -597,7 +632,7 @@ mod tests {
     async fn test_orchestrator_with_patterns() {
         let workspace_manager = Arc::new(
             WorkspaceManager::new(WorkspaceManagerConfig::default())
-                .expect("Failed to create workspace manager")
+                .expect("Failed to create workspace manager"),
         );
         let window_manager = Arc::new(WindowManager::with_default_providers());
         let tiling_engine = Arc::new(TilingEngine::new());

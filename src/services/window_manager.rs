@@ -1,9 +1,7 @@
 use crate::macos::accessibility::{
-    AXWindow, AccessibilityProvider, Point, Rect, Size, InMemoryAccessibilityProvider,
+    AXWindow, AccessibilityProvider, InMemoryAccessibilityProvider, Point, Rect, Size,
 };
-use crate::macos::core_graphics::{
-    DisplayProvider, MonitorInfo, InMemoryDisplayProvider,
-};
+use crate::macos::core_graphics::{DisplayProvider, InMemoryDisplayProvider, MonitorInfo};
 use crate::{Result, TilleRSError};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -89,8 +87,7 @@ impl WindowManager {
     pub fn with_default_providers() -> Self {
         let accessibility: Arc<dyn AccessibilityProvider> =
             Arc::new(InMemoryAccessibilityProvider::default());
-        let displays: Arc<dyn DisplayProvider> =
-            Arc::new(InMemoryDisplayProvider::default());
+        let displays: Arc<dyn DisplayProvider> = Arc::new(InMemoryDisplayProvider::default());
         Self::new(accessibility, displays)
     }
 
