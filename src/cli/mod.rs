@@ -4,7 +4,7 @@
 //! and system administration of the TilleRS window manager.
 
 use crate::{
-    config::ConfigManager,
+    config::ConfigParser,
     error_recovery::ErrorRecoveryManager,
     permissions::PermissionChecker,
     services::{WorkspaceManager, WindowManager},

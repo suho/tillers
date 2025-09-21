@@ -95,20 +95,20 @@
 - [x] T032 Integrate TilingEngine with WindowManager for automatic layout
 - [x] T033 Connect KeyboardHandler to WorkspaceManager for shortcut-triggered actions (ensure Option defaults applied and conflicts resolved)
 - [x] T034 Add structured logging with configurable levels using tracing crate
-- [ ] T035 Implement permission checker for accessibility and input monitoring
-- [ ] T036 Add error recovery for API failures and permission issues
+- [x] T035 Implement permission checker for accessibility and input monitoring
+- [x] T036 Add error recovery for API failures and permission issues
 
 ## Phase 3.5: Application Assembly
-- [ ] T037 Main application entry point with async runtime setup in src/main.rs
-- [ ] T038 System tray integration for status and basic controls in src/ui/system_tray.rs
-- [ ] T039 CLI interface for configuration and debugging in src/cli/mod.rs
-- [ ] T040 Application lifecycle management (startup, shutdown, background mode)
+- [x] T037 Main application entry point with async runtime setup in src/main.rs
+- [x] T038 System tray integration for status and basic controls in src/ui/system_tray.rs
+- [x] T039 CLI interface for configuration and debugging in src/cli/mod.rs
+- [x] T040 Application lifecycle management (startup, shutdown, background mode)
 
 ## Phase 3.6: Polish
-- [ ] T041 [P] Unit tests for tiling algorithms in tests/unit/test_tiling_algorithms.rs
-- [ ] T042 [P] Unit tests for configuration parsing in tests/unit/test_config_parser.rs
-- [ ] T043 [P] Performance benchmarks for workspace switching (<200ms) in benches/workspace_switching.rs
-- [ ] T044 [P] Performance benchmarks for window positioning (<50ms) in benches/window_positioning.rs
+- [x] T041 [P] Unit tests for tiling algorithms in tests/unit/test_tiling_algorithms.rs
+- [x] T042 [P] Unit tests for configuration parsing in tests/unit/test_config_parser.rs
+- [x] T043 [P] Performance benchmarks for workspace switching (<200ms) in benches/workspace_switching.rs
+- [x] T044 [P] Performance benchmarks for window positioning (<50ms) in benches/window_positioning.rs
 - [ ] T045 [P] Memory usage monitoring and leak detection in tests/performance/test_memory.rs
 - [ ] T046 Documentation generation with rustdoc for public APIs
 - [ ] T047 Create installation guide and user documentation detailing Option-key shortcut defaults and migration guidance

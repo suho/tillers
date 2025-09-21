@@ -4,7 +4,7 @@
 //! error recovery, and application lifecycle management.
 
 use tillers::{
-    config::{ConfigManager, ConfigManagerConfig},
+    config::{ConfigParser},
     error_recovery::{ErrorRecoveryManager, RecoveryConfig},
     logging::{LogConfig, init_logging},
     permissions::{PermissionChecker, PermissionConfig},
