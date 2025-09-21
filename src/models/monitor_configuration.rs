@@ -107,14 +107,19 @@ impl MonitorConfiguration {
         // Enhanced matching using monitor info if available
         if let (Some(config_info), Some(current_info)) = (&self.monitor_info, monitor_info) {
             // Match by model identifier
-            if let (Some(config_model), Some(current_model)) = (&config_info.model_identifier, &current_info.model_identifier) {
+            if let (Some(config_model), Some(current_model)) = (
+                &config_info.model_identifier,
+                &current_info.model_identifier,
+            ) {
                 if config_model == current_model {
                     return true;
                 }
             }
 
             // Match by serial number (most reliable)
-            if let (Some(config_serial), Some(current_serial)) = (&config_info.serial_number, &current_info.serial_number) {
+            if let (Some(config_serial), Some(current_serial)) =
+                (&config_info.serial_number, &current_info.serial_number)
+            {
                 if config_serial == current_serial {
                     return true;
                 }
@@ -122,7 +127,8 @@ impl MonitorConfiguration {
 
             // Match by display name and resolution
             if config_info.display_name == current_info.display_name
-                && config_info.native_resolution == current_info.native_resolution {
+                && config_info.native_resolution == current_info.native_resolution
+            {
                 return true;
             }
         }
@@ -131,7 +137,11 @@ impl MonitorConfiguration {
     }
 
     /// Get the effective tiling pattern for the current window count
-    pub fn get_effective_pattern_id(&self, window_count: usize, max_primary_windows: usize) -> Uuid {
+    pub fn get_effective_pattern_id(
+        &self,
+        window_count: usize,
+        max_primary_windows: usize,
+    ) -> Uuid {
         if window_count > max_primary_windows {
             self.secondary_pattern_id.unwrap_or(self.primary_pattern_id)
         } else {
@@ -158,16 +168,21 @@ impl MonitorConfiguration {
         // Intersect the active area with the full screen area to ensure bounds
         let x = self.active_area.x.max(full_screen_area.x);
         let y = self.active_area.y.max(full_screen_area.y);
-        
+
         let right = (self.active_area.x + self.active_area.width as i32)
             .min(full_screen_area.x + full_screen_area.width as i32);
         let bottom = (self.active_area.y + self.active_area.height as i32)
             .min(full_screen_area.y + full_screen_area.height as i32);
-        
+
         let width = (right - x).max(0) as u32;
         let height = (bottom - y).max(0) as u32;
 
-        ScreenArea { x, y, width, height }
+        ScreenArea {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     /// Check if the monitor orientation matches the preference
@@ -185,11 +200,14 @@ impl MonitorConfiguration {
     }
 
     /// Update the active area for this monitor configuration
-    pub fn update_active_area(&mut self, new_area: ScreenArea) -> Result<(), MonitorConfigurationError> {
+    pub fn update_active_area(
+        &mut self,
+        new_area: ScreenArea,
+    ) -> Result<(), MonitorConfigurationError> {
         if new_area.width == 0 || new_area.height == 0 {
             return Err(MonitorConfigurationError::InvalidActiveArea);
         }
-        
+
         self.active_area = new_area;
         Ok(())
     }
@@ -208,7 +226,9 @@ impl MonitorConfiguration {
 
         // Validate scale factor
         if self.scale_factor <= 0.0 || self.scale_factor > 5.0 {
-            return Err(MonitorConfigurationError::InvalidScaleFactor(self.scale_factor));
+            return Err(MonitorConfigurationError::InvalidScaleFactor(
+                self.scale_factor,
+            ));
         }
 
         // Validate monitor info if present
@@ -216,7 +236,7 @@ impl MonitorConfiguration {
             if info.display_name.trim().is_empty() {
                 return Err(MonitorConfigurationError::EmptyDisplayName);
             }
-            
+
             if info.native_resolution.0 == 0 || info.native_resolution.1 == 0 {
                 return Err(MonitorConfigurationError::InvalidNativeResolution);
             }
@@ -245,14 +265,23 @@ impl MonitorConfigurationSet {
     }
 
     /// Add a monitor configuration to the set
-    pub fn add_configuration(&mut self, config: MonitorConfiguration) -> Result<(), MonitorConfigurationError> {
+    pub fn add_configuration(
+        &mut self,
+        config: MonitorConfiguration,
+    ) -> Result<(), MonitorConfigurationError> {
         if config.workspace_id != self.workspace_id {
             return Err(MonitorConfigurationError::WorkspaceMismatch);
         }
 
         // Check for duplicate monitor identifiers
-        if self.configurations.iter().any(|c| c.monitor_identifier == config.monitor_identifier) {
-            return Err(MonitorConfigurationError::DuplicateMonitorIdentifier(config.monitor_identifier));
+        if self
+            .configurations
+            .iter()
+            .any(|c| c.monitor_identifier == config.monitor_identifier)
+        {
+            return Err(MonitorConfigurationError::DuplicateMonitorIdentifier(
+                config.monitor_identifier,
+            ));
         }
 
         self.configurations.push(config);
@@ -260,7 +289,11 @@ impl MonitorConfigurationSet {
     }
 
     /// Find a configuration for a specific monitor
-    pub fn find_configuration(&self, monitor_id: &str, monitor_info: Option<&MonitorInfo>) -> Option<&MonitorConfiguration> {
+    pub fn find_configuration(
+        &self,
+        monitor_id: &str,
+        monitor_info: Option<&MonitorInfo>,
+    ) -> Option<&MonitorConfiguration> {
         self.configurations
             .iter()
             .find(|config| config.matches_monitor(monitor_id, monitor_info))
@@ -273,14 +306,24 @@ impl MonitorConfigurationSet {
     }
 
     /// Update configuration for a specific monitor
-    pub fn update_configuration<F>(&mut self, monitor_id: &str, updater: F) -> Result<(), MonitorConfigurationError>
+    pub fn update_configuration<F>(
+        &mut self,
+        monitor_id: &str,
+        updater: F,
+    ) -> Result<(), MonitorConfigurationError>
     where
         F: FnOnce(&mut MonitorConfiguration) -> Result<(), MonitorConfigurationError>,
     {
-        if let Some(config) = self.configurations.iter_mut().find(|c| c.monitor_identifier == monitor_id) {
+        if let Some(config) = self
+            .configurations
+            .iter_mut()
+            .find(|c| c.monitor_identifier == monitor_id)
+        {
             updater(config)
         } else {
-            Err(MonitorConfigurationError::MonitorNotFound(monitor_id.to_string()))
+            Err(MonitorConfigurationError::MonitorNotFound(
+                monitor_id.to_string(),
+            ))
         }
     }
 }
@@ -290,28 +333,28 @@ impl MonitorConfigurationSet {
 pub enum MonitorConfigurationError {
     #[error("Monitor identifier cannot be empty")]
     EmptyMonitorIdentifier,
-    
+
     #[error("Display name cannot be empty")]
     EmptyDisplayName,
-    
+
     #[error("Active area must have non-zero dimensions")]
     InvalidActiveArea,
-    
+
     #[error("Scale factor must be between 0.0 and 5.0, got {0}")]
     InvalidScaleFactor(f64),
-    
+
     #[error("Native resolution must have non-zero dimensions")]
     InvalidNativeResolution,
-    
+
     #[error("Workspace ID mismatch")]
     WorkspaceMismatch,
-    
+
     #[error("Duplicate monitor identifier: {0}")]
     DuplicateMonitorIdentifier(String),
-    
+
     #[error("Monitor not found: {0}")]
     MonitorNotFound(String),
-    
+
     #[error("Monitor configuration is outside screen bounds")]
     ConfigurationOutOfBounds,
 }
@@ -325,7 +368,12 @@ impl Default for MonitorConfiguration {
             monitor_info: None,
             primary_pattern_id: Uuid::new_v4(),
             secondary_pattern_id: None,
-            active_area: ScreenArea { x: 0, y: 0, width: 1920, height: 1080 },
+            active_area: ScreenArea {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
             orientation_preference: OrientationPreference::Current,
             scale_factor: 1.0,
             is_primary: true,
@@ -342,8 +390,13 @@ mod tests {
     fn test_new_monitor_configuration_valid() {
         let workspace_id = Uuid::new_v4();
         let pattern_id = Uuid::new_v4();
-        let active_area = ScreenArea { x: 0, y: 0, width: 1920, height: 1080 };
-        
+        let active_area = ScreenArea {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+
         let config = MonitorConfiguration::new(
             workspace_id,
             "main".to_string(),
@@ -356,7 +409,7 @@ mod tests {
             true,
             true,
         );
-        
+
         assert!(config.is_ok());
         let config = config.unwrap();
         assert_eq!(config.workspace_id, workspace_id);
@@ -368,8 +421,13 @@ mod tests {
     fn test_new_monitor_configuration_invalid_scale() {
         let workspace_id = Uuid::new_v4();
         let pattern_id = Uuid::new_v4();
-        let active_area = ScreenArea { x: 0, y: 0, width: 1920, height: 1080 };
-        
+        let active_area = ScreenArea {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+
         let config = MonitorConfiguration::new(
             workspace_id,
             "main".to_string(),
@@ -382,7 +440,7 @@ mod tests {
             true,
             true,
         );
-        
+
         assert!(config.is_err());
     }
 
@@ -399,10 +457,10 @@ mod tests {
             }),
             ..Default::default()
         };
-        
+
         // Test exact identifier match
         assert!(config.matches_monitor("display1", None));
-        
+
         // Test model identifier match
         let current_info = MonitorInfo {
             display_name: "LG Monitor".to_string(),
@@ -412,7 +470,7 @@ mod tests {
             native_resolution: (3840, 2160),
         };
         assert!(config.matches_monitor("different_id", Some(&current_info)));
-        
+
         // Test serial number match
         let current_info_serial = MonitorInfo {
             display_name: "Different Name".to_string(),
@@ -422,7 +480,7 @@ mod tests {
             native_resolution: (1920, 1080),
         };
         assert!(config.matches_monitor("different_id", Some(&current_info_serial)));
-        
+
         // Test no match
         let no_match_info = MonitorInfo {
             display_name: "Dell Monitor".to_string(),
@@ -438,26 +496,29 @@ mod tests {
     fn test_effective_pattern_selection() {
         let primary_pattern = Uuid::new_v4();
         let secondary_pattern = Uuid::new_v4();
-        
+
         let config = MonitorConfiguration {
             primary_pattern_id: primary_pattern,
             secondary_pattern_id: Some(secondary_pattern),
             ..Default::default()
         };
-        
+
         // Should use primary pattern for small window counts
         assert_eq!(config.get_effective_pattern_id(3, 5), primary_pattern);
-        
+
         // Should use secondary pattern for large window counts
         assert_eq!(config.get_effective_pattern_id(8, 5), secondary_pattern);
-        
+
         // Test with no secondary pattern
         let config_no_secondary = MonitorConfiguration {
             primary_pattern_id: primary_pattern,
             secondary_pattern_id: None,
             ..Default::default()
         };
-        assert_eq!(config_no_secondary.get_effective_pattern_id(8, 5), primary_pattern);
+        assert_eq!(
+            config_no_secondary.get_effective_pattern_id(8, 5),
+            primary_pattern
+        );
     }
 
     #[test]
@@ -466,7 +527,7 @@ mod tests {
             scale_factor: 2.0,
             ..Default::default()
         };
-        
+
         assert_eq!(config.scale_dimensions(100, 200), (200, 400));
         assert_eq!(config.scale_position(50, 75), (100, 150));
     }
@@ -474,13 +535,23 @@ mod tests {
     #[test]
     fn test_usable_area_calculation() {
         let config = MonitorConfiguration {
-            active_area: ScreenArea { x: 10, y: 30, width: 1900, height: 1000 },
+            active_area: ScreenArea {
+                x: 10,
+                y: 30,
+                width: 1900,
+                height: 1000,
+            },
             ..Default::default()
         };
-        
-        let full_screen = ScreenArea { x: 0, y: 0, width: 1920, height: 1080 };
+
+        let full_screen = ScreenArea {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
         let usable = config.get_usable_area(&full_screen);
-        
+
         assert_eq!(usable.x, 10);
         assert_eq!(usable.y, 30);
         assert_eq!(usable.width, 1900);
@@ -491,33 +562,33 @@ mod tests {
     fn test_monitor_configuration_set() {
         let workspace_id = Uuid::new_v4();
         let mut config_set = MonitorConfigurationSet::new(workspace_id);
-        
+
         let config1 = MonitorConfiguration {
             workspace_id,
             monitor_identifier: "display1".to_string(),
             is_primary: true,
             ..Default::default()
         };
-        
+
         let config2 = MonitorConfiguration {
             workspace_id,
             monitor_identifier: "display2".to_string(),
             is_primary: false,
             ..Default::default()
         };
-        
+
         assert!(config_set.add_configuration(config1.clone()).is_ok());
         assert!(config_set.add_configuration(config2).is_ok());
-        
+
         // Test finding configuration
         assert!(config_set.find_configuration("display1", None).is_some());
         assert!(config_set.find_configuration("nonexistent", None).is_none());
-        
+
         // Test primary configuration
         let primary = config_set.get_primary_configuration();
         assert!(primary.is_some());
         assert_eq!(primary.unwrap().monitor_identifier, "display1");
-        
+
         // Test duplicate identifier
         let duplicate_config = MonitorConfiguration {
             workspace_id,
@@ -533,15 +604,15 @@ mod tests {
             orientation_preference: OrientationPreference::Landscape,
             ..Default::default()
         };
-        
+
         assert!(config.orientation_matches(1920, 1080)); // Landscape
         assert!(!config.orientation_matches(1080, 1920)); // Portrait
-        
+
         let portrait_config = MonitorConfiguration {
             orientation_preference: OrientationPreference::Portrait,
             ..Default::default()
         };
-        
+
         assert!(!portrait_config.orientation_matches(1920, 1080)); // Landscape
         assert!(portrait_config.orientation_matches(1080, 1920)); // Portrait
     }
@@ -550,16 +621,16 @@ mod tests {
     fn test_validation() {
         let mut config = MonitorConfiguration::default();
         assert!(config.validate().is_ok());
-        
+
         // Test empty identifier
         config.monitor_identifier = "".to_string();
         assert!(config.validate().is_err());
-        
+
         // Test invalid scale factor
         config.monitor_identifier = "display1".to_string();
         config.scale_factor = 0.0;
         assert!(config.validate().is_err());
-        
+
         // Test invalid active area
         config.scale_factor = 1.0;
         config.active_area.width = 0;

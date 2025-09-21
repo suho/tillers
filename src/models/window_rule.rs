@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// How a window should be positioned within a workspace
@@ -90,9 +90,15 @@ impl WindowRule {
     }
 
     /// Check if this rule matches a given application and window title
-    pub fn matches(&self, app_identifier: &str, window_title: Option<&str>) -> Result<bool, WindowRuleError> {
+    pub fn matches(
+        &self,
+        app_identifier: &str,
+        window_title: Option<&str>,
+    ) -> Result<bool, WindowRuleError> {
         // Check application identifier match (exact or pattern)
-        let app_matches = if self.application_identifier.contains('*') || self.application_identifier.contains('?') {
+        let app_matches = if self.application_identifier.contains('*')
+            || self.application_identifier.contains('?')
+        {
             // Simple glob-style matching
             self.glob_match(&self.application_identifier, app_identifier)
         } else {
@@ -107,8 +113,9 @@ impl WindowRule {
         // Check window title pattern if specified
         if let Some(ref pattern) = self.window_title_pattern {
             if let Some(title) = window_title {
-                let regex = Regex::new(pattern)
-                    .map_err(|e| WindowRuleError::InvalidRegexPattern(pattern.clone(), e.to_string()))?;
+                let regex = Regex::new(pattern).map_err(|e| {
+                    WindowRuleError::InvalidRegexPattern(pattern.clone(), e.to_string())
+                })?;
                 return Ok(regex.is_match(title));
             } else {
                 // No window title provided but pattern is required
@@ -126,7 +133,7 @@ impl WindowRule {
             .replace(".", "\\.")
             .replace("*", ".*")
             .replace("?", ".");
-        
+
         if let Ok(regex) = Regex::new(&format!("^{}$", regex_pattern)) {
             regex.is_match(text)
         } else {
@@ -136,11 +143,15 @@ impl WindowRule {
     }
 
     /// Get the effective geometry for this window rule
-    pub fn get_effective_geometry(&self, default_geometry: Option<&FixedGeometry>) -> Option<FixedGeometry> {
+    pub fn get_effective_geometry(
+        &self,
+        default_geometry: Option<&FixedGeometry>,
+    ) -> Option<FixedGeometry> {
         match self.positioning_rule {
-            PositioningRule::Fixed => {
-                self.fixed_geometry.clone().or_else(|| default_geometry.cloned())
-            }
+            PositioningRule::Fixed => self
+                .fixed_geometry
+                .clone()
+                .or_else(|| default_geometry.cloned()),
             _ => None,
         }
     }
@@ -170,9 +181,10 @@ impl WindowRule {
             if pattern.trim().is_empty() {
                 return Err(WindowRuleError::EmptyWindowTitlePattern);
             }
-            
-            Regex::new(pattern)
-                .map_err(|e| WindowRuleError::InvalidRegexPattern(pattern.clone(), e.to_string()))?;
+
+            Regex::new(pattern).map_err(|e| {
+                WindowRuleError::InvalidRegexPattern(pattern.clone(), e.to_string())
+            })?;
         }
 
         // Validate fixed geometry if positioning rule is Fixed
@@ -203,19 +215,19 @@ pub enum FocusContext {
 pub enum WindowRuleError {
     #[error("Application identifier cannot be empty")]
     EmptyApplicationIdentifier,
-    
+
     #[error("Window title pattern cannot be empty")]
     EmptyWindowTitlePattern,
-    
+
     #[error("Invalid regex pattern '{0}': {1}")]
     InvalidRegexPattern(String, String),
-    
+
     #[error("Fixed positioning rule requires fixed geometry")]
     MissingFixedGeometry,
-    
+
     #[error("Geometry dimensions must be greater than 0")]
     InvalidGeometryDimensions,
-    
+
     #[error("Fixed geometry coordinates are outside screen bounds")]
     GeometryOutOfBounds,
 }
@@ -253,7 +265,7 @@ mod tests {
             FocusBehavior::OnCreate,
             None,
         );
-        
+
         assert!(rule.is_ok());
         let rule = rule.unwrap();
         assert_eq!(rule.workspace_id, workspace_id);
@@ -273,7 +285,7 @@ mod tests {
             FocusBehavior::Never,
             None,
         );
-        
+
         assert!(rule.is_err());
     }
 
@@ -290,7 +302,7 @@ mod tests {
             FocusBehavior::Never,
             None,
         );
-        
+
         assert!(rule.is_err());
     }
 
@@ -301,7 +313,7 @@ mod tests {
             window_title_pattern: None,
             ..Default::default()
         };
-        
+
         assert!(rule.matches("com.apple.Terminal", None).unwrap());
         assert!(!rule.matches("com.apple.Safari", None).unwrap());
     }
@@ -313,7 +325,7 @@ mod tests {
             window_title_pattern: None,
             ..Default::default()
         };
-        
+
         assert!(rule.matches("com.apple.Terminal", None).unwrap());
         assert!(rule.matches("com.apple.Safari", None).unwrap());
         assert!(!rule.matches("com.google.Chrome", None).unwrap());
@@ -326,9 +338,13 @@ mod tests {
             window_title_pattern: Some(r".*vim.*".to_string()),
             ..Default::default()
         };
-        
-        assert!(rule.matches("com.apple.Terminal", Some("editing file.txt - vim")).unwrap());
-        assert!(!rule.matches("com.apple.Terminal", Some("shell session")).unwrap());
+
+        assert!(rule
+            .matches("com.apple.Terminal", Some("editing file.txt - vim"))
+            .unwrap());
+        assert!(!rule
+            .matches("com.apple.Terminal", Some("shell session"))
+            .unwrap());
         assert!(!rule.matches("com.apple.Terminal", None).unwrap()); // No title provided
     }
 
@@ -339,8 +355,10 @@ mod tests {
             window_title_pattern: Some("[invalid regex".to_string()),
             ..Default::default()
         };
-        
-        assert!(rule.matches("com.apple.Terminal", Some("any title")).is_err());
+
+        assert!(rule
+            .matches("com.apple.Terminal", Some("any title"))
+            .is_err());
     }
 
     #[test]
@@ -351,13 +369,13 @@ mod tests {
             width: 800,
             height: 600,
         };
-        
+
         let rule = WindowRule {
             positioning_rule: PositioningRule::Fixed,
             fixed_geometry: Some(geometry.clone()),
             ..Default::default()
         };
-        
+
         assert_eq!(rule.get_effective_geometry(None), Some(geometry));
     }
 
@@ -367,23 +385,23 @@ mod tests {
             focus_behavior: FocusBehavior::OnCreate,
             ..Default::default()
         };
-        
+
         let rule_on_switch = WindowRule {
             focus_behavior: FocusBehavior::OnSwitch,
             ..Default::default()
         };
-        
+
         let rule_never = WindowRule {
             focus_behavior: FocusBehavior::Never,
             ..Default::default()
         };
-        
+
         assert!(rule_on_create.should_auto_focus(FocusContext::WindowCreated));
         assert!(!rule_on_create.should_auto_focus(FocusContext::WorkspaceSwitch));
-        
+
         assert!(!rule_on_switch.should_auto_focus(FocusContext::WindowCreated));
         assert!(rule_on_switch.should_auto_focus(FocusContext::WorkspaceSwitch));
-        
+
         assert!(!rule_never.should_auto_focus(FocusContext::WindowCreated));
         assert!(!rule_never.should_auto_focus(FocusContext::WorkspaceSwitch));
     }
@@ -394,12 +412,12 @@ mod tests {
             z_order_priority: 0,
             ..Default::default()
         };
-        
+
         let rule_with_priority = WindowRule {
             z_order_priority: 5,
             ..Default::default()
         };
-        
+
         assert!(!rule_no_priority.has_z_order_priority());
         assert!(rule_with_priority.has_z_order_priority());
     }
@@ -409,22 +427,22 @@ mod tests {
         let mut rule = WindowRule::default();
         rule.application_identifier = "com.example.app".to_string();
         assert!(rule.validate().is_ok());
-        
+
         // Test empty application identifier
         rule.application_identifier = "".to_string();
         assert!(rule.validate().is_err());
-        
+
         // Test invalid regex pattern
         rule.application_identifier = "com.example.app".to_string();
         rule.window_title_pattern = Some("[invalid".to_string());
         assert!(rule.validate().is_err());
-        
+
         // Test fixed positioning without geometry
         rule.window_title_pattern = None;
         rule.positioning_rule = PositioningRule::Fixed;
         rule.fixed_geometry = None;
         assert!(rule.validate().is_err());
-        
+
         // Test invalid geometry dimensions
         rule.fixed_geometry = Some(FixedGeometry {
             x: 0,

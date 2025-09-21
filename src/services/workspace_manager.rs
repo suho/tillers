@@ -1,10 +1,10 @@
-use crate::models::{Workspace, WorkspaceCreateRequest, WorkspaceUpdateRequest, WorkspaceState};
+use crate::models::{Workspace, WorkspaceCreateRequest};
 use crate::{Result, TilleRSError};
 use std::collections::HashMap;
-use tokio::sync::{RwLock, Mutex};
 use std::sync::Arc;
+use tokio::sync::{Mutex, RwLock};
+use tracing::{debug, info};
 use uuid::Uuid;
-use tracing::{info, debug};
 
 /// Events that can be triggered by workspace operations
 #[derive(Debug, Clone)]
@@ -16,7 +16,10 @@ pub enum WorkspaceEvent {
     /// Workspace was deleted
     WorkspaceDeleted { workspace_id: Uuid },
     /// Active workspace changed
-    WorkspaceActivated { workspace: Workspace, previous: Option<Uuid> },
+    WorkspaceActivated {
+        workspace: Workspace,
+        previous: Option<Uuid>,
+    },
     /// Workspace configuration changed
     ConfigurationChanged { workspace_id: Uuid },
 }
@@ -103,25 +106,34 @@ impl WorkspaceManager {
         let workspaces = self.workspaces.read().await;
         if workspaces.len() >= self.config.max_workspaces {
             self.increment_error_count().await;
-            return Err(TilleRSError::ValidationError(
-                format!("Maximum workspace limit of {} reached", self.config.max_workspaces)
-            ).into());
+            return Err(TilleRSError::ValidationError(format!(
+                "Maximum workspace limit of {} reached",
+                self.config.max_workspaces
+            ))
+            .into());
         }
 
         // Check for duplicate names
         if workspaces.values().any(|w| w.name == request.name) {
             self.increment_error_count().await;
-            return Err(TilleRSError::ValidationError(
-                format!("Workspace name '{}' already exists", request.name)
-            ).into());
+            return Err(TilleRSError::ValidationError(format!(
+                "Workspace name '{}' already exists",
+                request.name
+            ))
+            .into());
         }
 
         // Check for duplicate shortcuts
-        if workspaces.values().any(|w| w.keyboard_shortcut == request.keyboard_shortcut) {
+        if workspaces
+            .values()
+            .any(|w| w.keyboard_shortcut == request.keyboard_shortcut)
+        {
             self.increment_error_count().await;
-            return Err(TilleRSError::ValidationError(
-                format!("Keyboard shortcut '{}' already exists", request.keyboard_shortcut)
-            ).into());
+            return Err(TilleRSError::ValidationError(format!(
+                "Keyboard shortcut '{}' already exists",
+                request.keyboard_shortcut
+            ))
+            .into());
         }
         drop(workspaces);
 
@@ -142,7 +154,8 @@ impl WorkspaceManager {
         }
 
         // Emit event
-        self.emit_event(WorkspaceEvent::WorkspaceCreated { workspace }).await;
+        self.emit_event(WorkspaceEvent::WorkspaceCreated { workspace })
+            .await;
 
         // Set as active if first workspace
         let active_id = self.active_workspace_id.read().await;
@@ -160,7 +173,8 @@ impl WorkspaceManager {
     /// Get a workspace by ID
     pub async fn get_workspace(&self, workspace_id: Uuid) -> Result<Workspace> {
         let workspaces = self.workspaces.read().await;
-        workspaces.get(&workspace_id)
+        workspaces
+            .get(&workspace_id)
             .cloned()
             .ok_or_else(|| TilleRSError::WorkspaceNotFound(workspace_id.to_string()).into())
     }
@@ -193,19 +207,27 @@ impl WorkspaceManager {
 
         // Check for name conflicts (excluding self)
         let workspaces = self.workspaces.read().await;
-        if workspaces.values().any(|w| w.id != workspace_id && w.name == workspace.name) {
-            return Err(TilleRSError::ValidationError(
-                format!("Workspace name '{}' already exists", workspace.name)
-            ).into());
+        if workspaces
+            .values()
+            .any(|w| w.id != workspace_id && w.name == workspace.name)
+        {
+            return Err(TilleRSError::ValidationError(format!(
+                "Workspace name '{}' already exists",
+                workspace.name
+            ))
+            .into());
         }
 
         // Check for shortcut conflicts (excluding self)
-        if workspaces.values().any(|w| {
-            w.id != workspace_id && w.keyboard_shortcut == workspace.keyboard_shortcut
-        }) {
-            return Err(TilleRSError::ValidationError(
-                format!("Keyboard shortcut '{}' already exists", workspace.keyboard_shortcut)
-            ).into());
+        if workspaces
+            .values()
+            .any(|w| w.id != workspace_id && w.keyboard_shortcut == workspace.keyboard_shortcut)
+        {
+            return Err(TilleRSError::ValidationError(format!(
+                "Keyboard shortcut '{}' already exists",
+                workspace.keyboard_shortcut
+            ))
+            .into());
         }
         drop(workspaces);
 
@@ -219,7 +241,8 @@ impl WorkspaceManager {
         drop(workspaces);
 
         // Emit event
-        self.emit_event(WorkspaceEvent::WorkspaceUpdated { workspace }).await;
+        self.emit_event(WorkspaceEvent::WorkspaceUpdated { workspace })
+            .await;
 
         info!("Updated workspace {}", workspace_id);
         Ok(())
@@ -242,7 +265,7 @@ impl WorkspaceManager {
         let active_id = self.active_workspace_id.read().await;
         if active_id.as_ref() == Some(&workspace_id) {
             drop(active_id);
-            
+
             // Switch to another workspace if available
             if remaining_count > 0 {
                 let workspaces = self.workspaces.read().await;
@@ -264,7 +287,8 @@ impl WorkspaceManager {
         }
 
         // Emit event
-        self.emit_event(WorkspaceEvent::WorkspaceDeleted { workspace_id }).await;
+        self.emit_event(WorkspaceEvent::WorkspaceDeleted { workspace_id })
+            .await;
 
         info!("Deleted workspace {}", workspace_id);
         Ok(())
@@ -276,7 +300,8 @@ impl WorkspaceManager {
 
         // Check if workspace exists
         let workspaces = self.workspaces.read().await;
-        let workspace = workspaces.get(&workspace_id)
+        let workspace = workspaces
+            .get(&workspace_id)
             .ok_or_else(|| TilleRSError::WorkspaceNotFound(workspace_id.to_string()))?
             .clone();
         drop(workspaces);
@@ -303,14 +328,14 @@ impl WorkspaceManager {
             let mut metrics = self.metrics.write().await;
             metrics.switch_count += 1;
             metrics.last_switch_time_ms = elapsed;
-            
+
             // Update running average
             if metrics.switch_count == 1 {
                 metrics.avg_switch_time_ms = elapsed;
             } else {
-                metrics.avg_switch_time_ms = 
-                    (metrics.avg_switch_time_ms * (metrics.switch_count - 1) as f64 + elapsed) / 
-                    metrics.switch_count as f64;
+                metrics.avg_switch_time_ms =
+                    (metrics.avg_switch_time_ms * (metrics.switch_count - 1) as f64 + elapsed)
+                        / metrics.switch_count as f64;
             }
         }
 
@@ -318,7 +343,8 @@ impl WorkspaceManager {
         self.emit_event(WorkspaceEvent::WorkspaceActivated {
             workspace,
             previous: previous_id,
-        }).await;
+        })
+        .await;
 
         info!("Switched to workspace {} in {}ms", workspace_id, elapsed);
         Ok(())
@@ -356,7 +382,7 @@ impl WorkspaceManager {
     }
 
     /// Add an event listener
-    pub async fn add_event_listener<F>(&self, listener: F) 
+    pub async fn add_event_listener<F>(&self, listener: F)
     where
         F: Fn(WorkspaceEvent) + Send + Sync + 'static,
     {
@@ -387,31 +413,39 @@ impl WorkspaceManager {
     pub async fn validate_all_workspaces(&self) -> Vec<(Uuid, TilleRSError)> {
         let workspaces = self.workspaces.read().await;
         let mut errors = Vec::new();
-        
+
         // Basic validation - check for duplicate names and shortcuts
         let mut names = HashMap::new();
         let mut shortcuts = HashMap::new();
-        
+
         for (id, workspace) in workspaces.iter() {
             // Check duplicate names
             if let Some(existing_id) = names.insert(workspace.name.clone(), *id) {
                 if existing_id != *id {
-                    errors.push((*id, TilleRSError::ValidationError(
-                        format!("Duplicate workspace name: {}", workspace.name)
-                    )));
+                    errors.push((
+                        *id,
+                        TilleRSError::ValidationError(format!(
+                            "Duplicate workspace name: {}",
+                            workspace.name
+                        )),
+                    ));
                 }
             }
-            
+
             // Check duplicate shortcuts
             if let Some(existing_id) = shortcuts.insert(workspace.keyboard_shortcut.clone(), *id) {
                 if existing_id != *id {
-                    errors.push((*id, TilleRSError::ValidationError(
-                        format!("Duplicate keyboard shortcut: {}", workspace.keyboard_shortcut)
-                    )));
+                    errors.push((
+                        *id,
+                        TilleRSError::ValidationError(format!(
+                            "Duplicate keyboard shortcut: {}",
+                            workspace.keyboard_shortcut
+                        )),
+                    ));
                 }
             }
         }
-        
+
         errors
     }
 
@@ -495,7 +529,7 @@ mod tests {
     async fn test_create_workspace() {
         let manager = WorkspaceManager::new(WorkspaceManagerConfig::default());
         let default_pattern_id = Uuid::new_v4();
-        
+
         let request = WorkspaceCreateRequest {
             name: "Test Workspace".to_string(),
             description: Some("Test description".to_string()),
@@ -503,11 +537,11 @@ mod tests {
             tiling_pattern_id: None,
             auto_arrange: Some(true),
         };
-        
+
         let workspace_id = manager.create_workspace(request, default_pattern_id).await;
-        
+
         assert!(workspace_id.is_ok());
-        
+
         let workspace = manager.get_workspace(workspace_id.unwrap()).await;
         assert!(workspace.is_ok());
         assert_eq!(workspace.unwrap().name, "Test Workspace");
@@ -517,7 +551,7 @@ mod tests {
     async fn test_duplicate_workspace_name() {
         let manager = WorkspaceManager::new(WorkspaceManagerConfig::default());
         let default_pattern_id = Uuid::new_v4();
-        
+
         // Create first workspace
         let request1 = WorkspaceCreateRequest {
             name: "Duplicate".to_string(),
@@ -528,7 +562,7 @@ mod tests {
         };
         let result1 = manager.create_workspace(request1, default_pattern_id).await;
         assert!(result1.is_ok());
-        
+
         // Try to create duplicate
         let request2 = WorkspaceCreateRequest {
             name: "Duplicate".to_string(),
@@ -544,18 +578,18 @@ mod tests {
     #[tokio::test]
     async fn test_workspace_switching() {
         let manager = WorkspaceManager::new(WorkspaceManagerConfig::default());
-        
+
         // Create workspaces
         let id1 = manager.create_workspace("WS1".to_string(), None, None, None).await.unwrap();
         let id2 = manager.create_workspace("WS2".to_string(), None, None, None).await.unwrap();
-        
+
         // Switch to second workspace
         assert!(manager.switch_to_workspace(id2).await.is_ok());
-        
+
         // Verify active workspace
         let active = manager.get_active_workspace_id().await;
         assert_eq!(active, Some(id2));
-        
+
         // Switch back to first
         assert!(manager.switch_to_workspace(id1).await.is_ok());
         let active = manager.get_active_workspace_id().await;
@@ -565,16 +599,16 @@ mod tests {
     #[tokio::test]
     async fn test_workspace_deletion() {
         let manager = WorkspaceManager::new(WorkspaceManagerConfig::default());
-        
+
         let id1 = manager.create_workspace("WS1".to_string(), None, None, None).await.unwrap();
         let id2 = manager.create_workspace("WS2".to_string(), None, None, None).await.unwrap();
-        
+
         // Delete first workspace
         assert!(manager.delete_workspace(id1).await.is_ok());
-        
+
         // Verify it's gone
         assert!(manager.get_workspace(id1).await.is_err());
-        
+
         // Verify count
         assert_eq!(manager.get_workspace_count().await, 1);
     }
@@ -582,15 +616,15 @@ mod tests {
     #[tokio::test]
     async fn test_workspace_search() {
         let manager = WorkspaceManager::new(WorkspaceManagerConfig::default());
-        
+
         manager.create_workspace("Development".to_string(), None, None, None).await.unwrap();
         manager.create_workspace("Testing".to_string(), None, None, None).await.unwrap();
         manager.create_workspace("Production".to_string(), None, None, None).await.unwrap();
-        
+
         let results = manager.find_workspaces_by_name("dev").await;
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "Development");
-        
+
         let results = manager.find_workspaces_by_name("tion").await;
         assert_eq!(results.len(), 2); // Testing and Production
     }
@@ -602,11 +636,11 @@ mod tests {
             ..Default::default()
         };
         let manager = WorkspaceManager::new(config);
-        
+
         // Create maximum allowed workspaces
         assert!(manager.create_workspace("WS1".to_string(), None, None, None).await.is_ok());
         assert!(manager.create_workspace("WS2".to_string(), None, None, None).await.is_ok());
-        
+
         // Try to create one more
         let result = manager.create_workspace("WS3".to_string(), None, None, None).await;
         assert!(result.is_err());
@@ -616,14 +650,14 @@ mod tests {
     #[tokio::test]
     async fn test_performance_metrics() {
         let manager = WorkspaceManager::new(WorkspaceManagerConfig::default());
-        
+
         let id1 = manager.create_workspace("WS1".to_string(), None, None, None).await.unwrap();
         let id2 = manager.create_workspace("WS2".to_string(), None, None, None).await.unwrap();
-        
+
         // Perform some switches
         manager.switch_to_workspace(id2).await.unwrap();
         manager.switch_to_workspace(id1).await.unwrap();
-        
+
         let metrics = manager.get_metrics().await;
         assert_eq!(metrics.switch_count, 3); // 1 auto-switch + 2 manual
         assert_eq!(metrics.created_count, 2);

@@ -111,7 +111,9 @@ impl TilingPattern {
         };
 
         match self.layout_algorithm {
-            LayoutAlgorithm::MasterStack => self.compute_master_stack_layout(&effective_area, window_count),
+            LayoutAlgorithm::MasterStack => {
+                self.compute_master_stack_layout(&effective_area, window_count)
+            }
             LayoutAlgorithm::Grid => self.compute_grid_layout(&effective_area, window_count),
             LayoutAlgorithm::Columns => self.compute_columns_layout(&effective_area, window_count),
             LayoutAlgorithm::Custom => self.compute_custom_layout(&effective_area, window_count),
@@ -146,7 +148,8 @@ impl TilingPattern {
             // Stack windows
             let stack_window_count = window_count - 1;
             let stack_window_height = if stack_window_count > 0 {
-                (area.height - (stack_window_count - 1) as u32 * self.gap_size) / stack_window_count as u32
+                (area.height - (stack_window_count - 1) as u32 * self.gap_size)
+                    / stack_window_count as u32
             } else {
                 0
             };
@@ -213,7 +216,8 @@ impl TilingPattern {
         let mut window_rects = Vec::new();
 
         // Each window gets equal column width
-        let window_width = (area.width - (window_count - 1) as u32 * self.gap_size) / window_count as u32;
+        let window_width =
+            (area.width - (window_count - 1) as u32 * self.gap_size) / window_count as u32;
 
         for i in 0..window_count {
             let rect = WindowRect {
@@ -246,7 +250,9 @@ impl TilingPattern {
     /// Validate the tiling pattern configuration
     pub fn validate(&self) -> Result<(), TilingPatternError> {
         if !(0.1..=0.9).contains(&self.main_area_ratio) {
-            return Err(TilingPatternError::InvalidMainAreaRatio(self.main_area_ratio));
+            return Err(TilingPatternError::InvalidMainAreaRatio(
+                self.main_area_ratio,
+            ));
         }
 
         if self.max_windows == 0 {
@@ -266,16 +272,16 @@ impl TilingPattern {
 pub enum TilingPatternError {
     #[error("Invalid main area ratio: {0}. Must be between 0.1 and 0.9")]
     InvalidMainAreaRatio(f64),
-    
+
     #[error("Invalid max windows: {0}. Must be greater than 0")]
     InvalidMaxWindows(u32),
-    
+
     #[error("Pattern name cannot be empty")]
     EmptyName,
-    
+
     #[error("Invalid screen area dimensions")]
     InvalidScreenArea,
-    
+
     #[error("Layout computation failed: {0}")]
     LayoutComputationFailed(String),
 }
@@ -310,7 +316,7 @@ mod tests {
             8,
             ResizeBehavior::Shrink,
         );
-        
+
         assert!(pattern.is_ok());
         let pattern = pattern.unwrap();
         assert_eq!(pattern.name, "Test Pattern");
@@ -328,22 +334,29 @@ mod tests {
             8,
             ResizeBehavior::Shrink,
         );
-        
+
         assert!(pattern.is_err());
     }
 
     #[test]
     fn test_master_stack_layout_single_window() {
         let pattern = TilingPattern::default();
-        let screen_area = WindowRect { x: 0, y: 0, width: 1000, height: 800 };
-        
+        let screen_area = WindowRect {
+            x: 0,
+            y: 0,
+            width: 1000,
+            height: 800,
+        };
+
         let layout = pattern.compute_layout(&screen_area, 1).unwrap();
         assert_eq!(layout.window_rects.len(), 1);
-        
+
         // Single window should use available area minus margins
-        let expected_rect = WindowRect { 
-            x: 10, y: 10, 
-            width: 980, height: 780 
+        let expected_rect = WindowRect {
+            x: 10,
+            y: 10,
+            width: 980,
+            height: 780,
         };
         assert_eq!(layout.window_rects[0], expected_rect);
     }
@@ -351,11 +364,16 @@ mod tests {
     #[test]
     fn test_master_stack_layout_multiple_windows() {
         let pattern = TilingPattern::default();
-        let screen_area = WindowRect { x: 0, y: 0, width: 1000, height: 800 };
-        
+        let screen_area = WindowRect {
+            x: 0,
+            y: 0,
+            width: 1000,
+            height: 800,
+        };
+
         let layout = pattern.compute_layout(&screen_area, 3).unwrap();
         assert_eq!(layout.window_rects.len(), 3);
-        
+
         // Main window should use 60% of width
         let main_rect = &layout.window_rects[0];
         assert_eq!(main_rect.width, 588); // (980 * 0.6) rounded
@@ -368,11 +386,16 @@ mod tests {
             layout_algorithm: LayoutAlgorithm::Grid,
             ..Default::default()
         };
-        let screen_area = WindowRect { x: 0, y: 0, width: 1000, height: 800 };
-        
+        let screen_area = WindowRect {
+            x: 0,
+            y: 0,
+            width: 1000,
+            height: 800,
+        };
+
         let layout = pattern.compute_layout(&screen_area, 4).unwrap();
         assert_eq!(layout.window_rects.len(), 4);
-        
+
         // 4 windows should form 2x2 grid
         assert_eq!(layout.window_rects[0].width, layout.window_rects[1].width);
         assert_eq!(layout.window_rects[0].height, layout.window_rects[2].height);
@@ -384,11 +407,16 @@ mod tests {
             layout_algorithm: LayoutAlgorithm::Columns,
             ..Default::default()
         };
-        let screen_area = WindowRect { x: 0, y: 0, width: 1000, height: 800 };
-        
+        let screen_area = WindowRect {
+            x: 0,
+            y: 0,
+            width: 1000,
+            height: 800,
+        };
+
         let layout = pattern.compute_layout(&screen_area, 3).unwrap();
         assert_eq!(layout.window_rects.len(), 3);
-        
+
         // All windows should have same width and full height
         for rect in &layout.window_rects {
             assert_eq!(rect.height, 780); // Full height minus margins
@@ -399,14 +427,14 @@ mod tests {
     fn test_validation() {
         let mut pattern = TilingPattern::default();
         assert!(pattern.validate().is_ok());
-        
+
         pattern.main_area_ratio = 1.5;
         assert!(pattern.validate().is_err());
-        
+
         pattern.main_area_ratio = 0.6;
         pattern.max_windows = 0;
         assert!(pattern.validate().is_err());
-        
+
         pattern.max_windows = 10;
         pattern.name = "".to_string();
         assert!(pattern.validate().is_err());

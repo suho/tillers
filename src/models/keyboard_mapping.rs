@@ -324,6 +324,28 @@ impl ShortcutCombination {
 
         Ok(())
     }
+
+    /// Returns true if the shortcut already includes the Option modifier
+    pub fn has_option_modifier(&self) -> bool {
+        self.modifiers.contains(&ModifierKey::Option)
+    }
+
+    /// Replace legacy Command-only shortcuts with Option to enforce new default
+    ///
+    /// Returns `true` when the shortcut is updated.
+    pub fn migrate_command_to_option(&mut self) -> bool {
+        if self.has_option_modifier() || !self.modifiers.contains(&ModifierKey::Command) {
+            return false;
+        }
+
+        // Remove Command modifiers and insert Option instead
+        self.modifiers
+            .retain(|modifier| *modifier != ModifierKey::Command);
+        self.modifiers.push(ModifierKey::Option);
+        self.modifiers.sort_by_key(|m| format!("{:?}", m));
+        self.modifiers.dedup();
+        true
+    }
 }
 
 /// Collection of keyboard mappings
@@ -388,15 +410,28 @@ impl KeyboardMappingSet {
             .collect()
     }
 
+    /// Replace any legacy Command-only shortcuts with the new Option default.
+    ///
+    /// Returns the number of mappings that were updated.
+    pub fn migrate_legacy_command_shortcuts(&mut self) -> usize {
+        let mut updated = 0;
+        for mapping in &mut self.mappings {
+            if mapping.shortcut_combination.migrate_command_to_option() {
+                updated += 1;
+            }
+        }
+        updated
+    }
+
     /// Create default keyboard mappings
     pub fn create_default() -> Result<Self, KeyboardMappingError> {
         let mut set = KeyboardMappingSet::new();
 
-        // Default workspace switching shortcuts (Cmd+1 through Cmd+9)
+        // Default workspace switching shortcuts (Option+1 through Option+9)
         for i in 1..=9 {
             let mapping = KeyboardMapping::new(
                 format!("Switch to Workspace {}", i),
-                ShortcutCombination::new(vec![ModifierKey::Command], Key::Number(i)),
+                ShortcutCombination::new(vec![ModifierKey::Option], Key::Number(i)),
                 ActionType::SwitchWorkspace,
                 ActionParameters::None, // Will be filled in with actual workspace IDs
                 true,
@@ -410,35 +445,35 @@ impl KeyboardMappingSet {
         let default_mappings = vec![
             (
                 "Focus Next Window",
-                vec![ModifierKey::Command],
+                vec![ModifierKey::Option],
                 Key::Tab,
                 ActionType::FocusNext,
                 ActionParameters::None,
             ),
             (
                 "Focus Previous Window",
-                vec![ModifierKey::Command, ModifierKey::Shift],
+                vec![ModifierKey::Option, ModifierKey::Shift],
                 Key::Tab,
                 ActionType::FocusPrevious,
                 ActionParameters::None,
             ),
             (
                 "Close Window",
-                vec![ModifierKey::Command],
+                vec![ModifierKey::Option],
                 Key::Letter('w'),
                 ActionType::CloseWindow,
                 ActionParameters::None,
             ),
             (
                 "Toggle Fullscreen",
-                vec![ModifierKey::Command, ModifierKey::Control],
+                vec![ModifierKey::Option, ModifierKey::Control],
                 Key::Letter('f'),
                 ActionType::ToggleFullscreen,
                 ActionParameters::None,
             ),
             (
                 "Toggle Floating",
-                vec![ModifierKey::Command, ModifierKey::Option],
+                vec![ModifierKey::Option, ModifierKey::Shift],
                 Key::Letter('f'),
                 ActionType::ToggleFloating,
                 ActionParameters::None,
@@ -536,7 +571,7 @@ impl Default for KeyboardMapping {
             id: Uuid::new_v4(),
             name: "Default Mapping".to_string(),
             shortcut_combination: ShortcutCombination::new(
-                vec![ModifierKey::Command],
+                vec![ModifierKey::Option],
                 Key::Letter('a'),
             ),
             action_type: ActionType::ShowOverview,
@@ -561,12 +596,12 @@ mod tests {
     #[test]
     fn test_shortcut_combination_creation() {
         let combination = ShortcutCombination::new(
-            vec![ModifierKey::Command, ModifierKey::Shift],
+            vec![ModifierKey::Option, ModifierKey::Shift],
             Key::Letter('a'),
         );
 
         assert_eq!(combination.modifiers.len(), 2);
-        assert!(combination.modifiers.contains(&ModifierKey::Command));
+        assert!(combination.modifiers.contains(&ModifierKey::Option));
         assert!(combination.modifiers.contains(&ModifierKey::Shift));
         assert_eq!(combination.key, Key::Letter('a'));
     }
@@ -574,7 +609,7 @@ mod tests {
     #[test]
     fn test_shortcut_combination_deduplication() {
         let combination = ShortcutCombination::new(
-            vec![ModifierKey::Command, ModifierKey::Command, ModifierKey::Shift],
+            vec![ModifierKey::Option, ModifierKey::Option, ModifierKey::Shift],
             Key::Letter('a'),
         );
 
@@ -582,8 +617,16 @@ mod tests {
     }
 
     #[test]
+    fn test_shortcut_combination_allows_command_modifiers_for_compatibility() {
+        let combination = ShortcutCombination::new(vec![ModifierKey::Command], Key::Letter('b'));
+
+        assert_eq!(combination.modifiers, vec![ModifierKey::Command]);
+        assert_eq!(combination.key, Key::Letter('b'));
+    }
+
+    #[test]
     fn test_keyboard_mapping_creation() {
-        let combination = ShortcutCombination::new(vec![ModifierKey::Command], Key::Number(1));
+        let combination = ShortcutCombination::new(vec![ModifierKey::Option], Key::Number(1));
         let mapping = KeyboardMapping::new(
             "Test Mapping".to_string(),
             combination,
@@ -603,8 +646,8 @@ mod tests {
 
     #[test]
     fn test_keyboard_mapping_parameter_validation() {
-        let combination = ShortcutCombination::new(vec![ModifierKey::Command], Key::Number(1));
-        
+        let combination = ShortcutCombination::new(vec![ModifierKey::Option], Key::Number(1));
+
         // Valid parameter match
         let valid_mapping = KeyboardMapping::new(
             "Test".to_string(),
@@ -632,8 +675,8 @@ mod tests {
 
     #[test]
     fn test_keyboard_mapping_conflicts() {
-        let combination = ShortcutCombination::new(vec![ModifierKey::Command], Key::Letter('a'));
-        
+        let combination = ShortcutCombination::new(vec![ModifierKey::Option], Key::Letter('a'));
+
         let mapping1 = KeyboardMapping {
             shortcut_combination: combination.clone(),
             enabled: true,
@@ -653,10 +696,10 @@ mod tests {
     #[test]
     fn test_keyboard_mapping_set() {
         let mut set = KeyboardMappingSet::new();
-        
+
         let mapping1 = KeyboardMapping {
             shortcut_combination: ShortcutCombination::new(
-                vec![ModifierKey::Command],
+                vec![ModifierKey::Option],
                 Key::Letter('a'),
             ),
             enabled: true,
@@ -665,7 +708,7 @@ mod tests {
 
         let mapping2 = KeyboardMapping {
             shortcut_combination: ShortcutCombination::new(
-                vec![ModifierKey::Command],
+                vec![ModifierKey::Option, ModifierKey::Shift],
                 Key::Letter('b'),
             ),
             enabled: true,
@@ -678,7 +721,7 @@ mod tests {
         // Test conflict detection
         let conflicting_mapping = KeyboardMapping {
             shortcut_combination: ShortcutCombination::new(
-                vec![ModifierKey::Command],
+                vec![ModifierKey::Option],
                 Key::Letter('a'),
             ),
             enabled: true,
@@ -695,12 +738,12 @@ mod tests {
     #[test]
     fn test_shortcut_display() {
         let combination = ShortcutCombination::new(
-            vec![ModifierKey::Command, ModifierKey::Shift],
+            vec![ModifierKey::Option, ModifierKey::Shift],
             Key::Letter('a'),
         );
 
         let display = format!("{}", combination);
-        assert!(display.contains("⌘"));
+        assert!(display.contains("⌥"));
         assert!(display.contains("⇧"));
         assert!(display.contains("A"));
     }
@@ -709,15 +752,53 @@ mod tests {
     fn test_default_mappings_creation() {
         let set = KeyboardMappingSet::create_default();
         assert!(set.is_ok());
-        
+
         let set = set.unwrap();
         assert!(!set.mappings.is_empty());
-        
+
         // Check that we have workspace switching shortcuts
-        let workspace_shortcuts = set.mappings.iter()
+        let workspace_shortcuts = set
+            .mappings
+            .iter()
             .filter(|m| matches!(m.action_type, ActionType::SwitchWorkspace))
             .count();
-        assert_eq!(workspace_shortcuts, 9); // Cmd+1 through Cmd+9
+        assert_eq!(workspace_shortcuts, 9); // Option+1 through Option+9
+    }
+
+    #[test]
+    fn test_migrate_legacy_command_shortcuts() {
+        let mut set = KeyboardMappingSet::new();
+
+        let legacy_mapping = KeyboardMapping {
+            shortcut_combination: ShortcutCombination::new(
+                vec![ModifierKey::Command, ModifierKey::Shift],
+                Key::Letter('g'),
+            ),
+            enabled: true,
+            ..Default::default()
+        };
+
+        let option_mapping = KeyboardMapping {
+            shortcut_combination: ShortcutCombination::new(
+                vec![ModifierKey::Option],
+                Key::Letter('h'),
+            ),
+            enabled: true,
+            ..Default::default()
+        };
+
+        set.mappings.push(legacy_mapping);
+        set.mappings.push(option_mapping);
+
+        let updated = set.migrate_legacy_command_shortcuts();
+        assert_eq!(updated, 1);
+
+        let migrated = &set.mappings[0].shortcut_combination;
+        assert!(migrated.has_option_modifier());
+        assert!(!migrated.modifiers.contains(&ModifierKey::Command));
+
+        let untouched = &set.mappings[1].shortcut_combination;
+        assert!(untouched.has_option_modifier());
     }
 
     #[test]
@@ -746,7 +827,10 @@ mod tests {
         assert!(mapping.validate().is_err());
 
         // Test invalid resize amount
-        mapping.shortcut_combination.modifiers.push(ModifierKey::Command);
+        mapping
+            .shortcut_combination
+            .modifiers
+            .push(ModifierKey::Option);
         mapping.action_type = ActionType::ResizeWindow;
         mapping.parameters = ActionParameters::Resize(ResizeDirection::Increase, 0);
         assert!(mapping.validate().is_err());

@@ -54,7 +54,7 @@
 ### Contract Tests
 - [x] T006 [P] Contract test workspace manager API in tests/contract/test_workspace_manager.rs
 - [x] T007 [P] Contract test window manager API in tests/contract/test_window_manager.rs  
-- [x] T008 [P] Contract test keyboard handler API in tests/contract/test_keyboard_handler.rs
+- [x] T008 [P] Contract test keyboard handler API (Option modifier default + conflict detection) in tests/contract/test_keyboard_handler.rs
 
 ### Integration Tests (from quickstart scenarios)
 - [x] T009 [P] Integration test basic workspace creation and switching in tests/integration/test_workspace_switching.rs
@@ -71,13 +71,13 @@
 - [x] T016 [P] TilingPattern model with layout algorithms in src/models/tiling_pattern.rs
 - [x] T017 [P] WindowRule model for application-specific behavior in src/models/window_rule.rs
 - [x] T018 [P] MonitorConfiguration model for multi-display support in src/models/monitor_configuration.rs
-- [x] T019 [P] KeyboardMapping model for shortcut management in src/models/keyboard_mapping.rs
+- [x] T019 [P] KeyboardMapping model enforcing Option (⌥) default modifiers and uniqueness in src/models/keyboard_mapping.rs
 - [x] T020 [P] ApplicationProfile model for app compatibility in src/models/application_profile.rs
 
 ### Core Services
 - [x] T021 WorkspaceManager service for workspace CRUD and switching in src/services/workspace_manager.rs
 - [ ] T022 WindowManager service for macOS window manipulation via Accessibility APIs in src/services/window_manager.rs
-- [ ] T023 KeyboardHandler service for global hotkey registration and event handling in src/services/keyboard_handler.rs
+- [ ] T023 KeyboardHandler service for global hotkey registration (Option-first combos, legacy Command migration) in src/services/keyboard_handler.rs
 - [ ] T024 TilingEngine service for window layout calculation and positioning in src/services/tiling_engine.rs
 
 ### macOS Integration Layer
@@ -86,14 +86,14 @@
 - [ ] T027 [P] Objective-C bridge layer for NSApplication and system integration in src/macos/objc_bridge.rs
 
 ### Configuration Management
-- [ ] T028 Configuration parser for TOML workspace definitions in src/config/parser.rs
+- [ ] T028 Configuration parser for TOML workspace definitions (validate Option default, warn on Command legacy) in src/config/parser.rs
 - [ ] T029 Configuration validator with schema validation in src/config/validator.rs
 - [ ] T030 Configuration persistence with atomic file operations in src/config/persistence.rs
 
 ## Phase 3.4: Integration
-- [ ] T031 Connect WorkspaceManager to file-based configuration storage
+- [ ] T031 Connect WorkspaceManager to file-based configuration storage with migration for Command→Option shortcuts
 - [ ] T032 Integrate TilingEngine with WindowManager for automatic layout
-- [ ] T033 Connect KeyboardHandler to WorkspaceManager for shortcut-triggered actions
+- [ ] T033 Connect KeyboardHandler to WorkspaceManager for shortcut-triggered actions (ensure Option defaults applied and conflicts resolved)
 - [ ] T034 Add structured logging with configurable levels using tracing crate
 - [ ] T035 Implement permission checker for accessibility and input monitoring
 - [ ] T036 Add error recovery for API failures and permission issues
@@ -111,7 +111,7 @@
 - [ ] T044 [P] Performance benchmarks for window positioning (<50ms) in benches/window_positioning.rs
 - [ ] T045 [P] Memory usage monitoring and leak detection in tests/performance/test_memory.rs
 - [ ] T046 Documentation generation with rustdoc for public APIs
-- [ ] T047 Create installation guide and user documentation
+- [ ] T047 Create installation guide and user documentation detailing Option-key shortcut defaults and migration guidance
 - [ ] T048 Run complete quickstart manual testing scenarios
 
 ## Dependencies

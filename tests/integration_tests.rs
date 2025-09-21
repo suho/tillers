@@ -3,7 +3,7 @@
 
 mod contract {
     //! Contract tests validating API behavior against OpenAPI specifications
-    
+
     pub mod workspace_manager {
         use tillers::{Result, TilleRSError};
 
@@ -85,40 +85,52 @@ mod contract {
 
 mod integration {
     //! Integration tests for user scenarios from quickstart.md
-    
+
     #[tokio::test]
     async fn test_basic_workspace_creation_and_switching() {
         // Integration test for Scenario 1: Basic Workspace Creation and Switching
-        panic!("Integration functionality not implemented yet - TDD requires this test to fail first");
+        panic!(
+            "Integration functionality not implemented yet - TDD requires this test to fail first"
+        );
     }
 
     #[tokio::test]
     async fn test_multi_monitor_workspace_management() {
         // Integration test for Scenario 2: Multi-Monitor Workspace Management
-        panic!("Integration functionality not implemented yet - TDD requires this test to fail first");
+        panic!(
+            "Integration functionality not implemented yet - TDD requires this test to fail first"
+        );
     }
 
     #[tokio::test]
     async fn test_application_specific_window_rules() {
         // Integration test for Scenario 3: Application-Specific Window Rules
-        panic!("Integration functionality not implemented yet - TDD requires this test to fail first");
+        panic!(
+            "Integration functionality not implemented yet - TDD requires this test to fail first"
+        );
     }
 
     #[tokio::test]
     async fn test_keyboard_only_navigation() {
         // Integration test for Scenario 4: Keyboard-Only Navigation
-        panic!("Integration functionality not implemented yet - TDD requires this test to fail first");
+        panic!(
+            "Integration functionality not implemented yet - TDD requires this test to fail first"
+        );
     }
 
     #[tokio::test]
     async fn test_performance_under_load() {
         // Integration test for Scenario 5: Performance Under Load
-        panic!("Integration functionality not implemented yet - TDD requires this test to fail first");
+        panic!(
+            "Integration functionality not implemented yet - TDD requires this test to fail first"
+        );
     }
 
     #[tokio::test]
     async fn test_error_handling_and_recovery() {
         // Integration test for Scenario 6: Error Handling and Recovery
-        panic!("Integration functionality not implemented yet - TDD requires this test to fail first");
+        panic!(
+            "Integration functionality not implemented yet - TDD requires this test to fail first"
+        );
     }
 }

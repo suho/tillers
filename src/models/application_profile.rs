@@ -1,7 +1,7 @@
+use crate::models::{FocusBehavior, PositioningRule};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
-use crate::models::{PositioningRule, FocusBehavior};
 
 /// Application window behavior characteristics
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -187,7 +187,12 @@ impl ApplicationProfile {
     }
 
     /// Check if this profile matches a given application
-    pub fn matches_application(&self, bundle_id: Option<&str>, process_name: Option<&str>, window_title: Option<&str>) -> bool {
+    pub fn matches_application(
+        &self,
+        bundle_id: Option<&str>,
+        process_name: Option<&str>,
+        window_title: Option<&str>,
+    ) -> bool {
         // Primary match by bundle identifier
         if let Some(bundle_id) = bundle_id {
             if self.bundle_identifier == bundle_id {
@@ -228,7 +233,7 @@ impl ApplicationProfile {
             WindowDetectionStrategy::Combined => {
                 let primary_match = bundle_id.map_or(false, |id| id == rule.primary_identifier)
                     || process_name.map_or(false, |name| name == rule.primary_identifier);
-                
+
                 let secondary_match = rule.secondary_identifiers.iter().any(|identifier| {
                     bundle_id.map_or(false, |id| id == identifier)
                         || process_name.map_or(false, |name| name == identifier)
@@ -283,7 +288,11 @@ impl ApplicationProfile {
 
     /// Remove a preferred tiling pattern
     pub fn remove_preferred_pattern(&mut self, pattern_id: &Uuid) -> bool {
-        if let Some(pos) = self.preferred_tiling_patterns.iter().position(|id| id == pattern_id) {
+        if let Some(pos) = self
+            .preferred_tiling_patterns
+            .iter()
+            .position(|id| id == pattern_id)
+        {
             self.preferred_tiling_patterns.remove(pos);
             self.last_updated = chrono::Utc::now();
             true
@@ -356,9 +365,16 @@ impl ApplicationProfileSet {
     }
 
     /// Add an application profile
-    pub fn add_profile(&mut self, profile: ApplicationProfile) -> Result<(), ApplicationProfileError> {
+    pub fn add_profile(
+        &mut self,
+        profile: ApplicationProfile,
+    ) -> Result<(), ApplicationProfileError> {
         // Check for duplicate bundle identifiers
-        if self.profiles.iter().any(|p| p.bundle_identifier == profile.bundle_identifier) {
+        if self
+            .profiles
+            .iter()
+            .any(|p| p.bundle_identifier == profile.bundle_identifier)
+        {
             return Err(ApplicationProfileError::DuplicateBundleIdentifier(
                 profile.bundle_identifier,
             ));
@@ -388,7 +404,10 @@ impl ApplicationProfileSet {
     }
 
     /// Get all profiles with specific compatibility level
-    pub fn get_profiles_by_compatibility(&self, level: CompatibilityLevel) -> Vec<&ApplicationProfile> {
+    pub fn get_profiles_by_compatibility(
+        &self,
+        level: CompatibilityLevel,
+    ) -> Vec<&ApplicationProfile> {
         self.profiles
             .iter()
             .filter(|profile| profile.compatibility_info.level == level)
@@ -456,7 +475,7 @@ impl ApplicationProfileSet {
                 positioning,
                 compatibility,
             )?;
-            
+
             profile.is_user_profile = false; // Built-in profile
 
             // Add default detection rule
@@ -674,7 +693,7 @@ mod tests {
     #[test]
     fn test_profile_set() {
         let mut set = ApplicationProfileSet::new();
-        
+
         let profile1 = ApplicationProfile {
             bundle_identifier: "com.apple.Terminal".to_string(),
             ..Default::default()
@@ -705,10 +724,10 @@ mod tests {
     fn test_default_profiles_creation() {
         let set = ApplicationProfileSet::create_with_defaults();
         assert!(set.is_ok());
-        
+
         let set = set.unwrap();
         assert!(!set.profiles.is_empty());
-        
+
         // Check that Terminal profile exists
         let terminal = set.find_by_bundle_id("com.apple.Terminal");
         assert!(terminal.is_some());
