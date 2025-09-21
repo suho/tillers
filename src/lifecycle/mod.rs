@@ -5,7 +5,6 @@
 
 use crate::{
     cli::run_cli,
-    config::ConfigManager,
     error_recovery::ErrorRecoveryManager,
     logging::{LogConfig, init_logging},
     permissions::PermissionChecker,
@@ -124,11 +123,10 @@ pub struct LifecycleManager {
     // Core services
     workspace_manager: Arc<WorkspaceManager>,
     window_manager: Arc<WindowManager>,
-    keyboard_handler: Arc<KeyboardHandler>,
-    tiling_engine: Arc<TilingEngine>,
+    _keyboard_handler: Arc<KeyboardHandler>,
+    _tiling_engine: Arc<TilingEngine>,
     
     // Support services
-    config_manager: Arc<ConfigManager>,
     permission_checker: Arc<RwLock<PermissionChecker>>,
     error_recovery: Arc<ErrorRecoveryManager>,
     
@@ -137,7 +135,7 @@ pub struct LifecycleManager {
     
     // Lifecycle management
     shutdown_signal: Arc<Mutex<Option<broadcast::Sender<()>>>>,
-    start_time: Instant,
+    _start_time: Instant,
     
     // State tracking
     application_state: Arc<RwLock<ApplicationState>>,
@@ -153,7 +151,6 @@ impl LifecycleManager {
         window_manager: Arc<WindowManager>,
         keyboard_handler: Arc<KeyboardHandler>,
         tiling_engine: Arc<TilingEngine>,
-        config_manager: Arc<ConfigManager>,
         permission_checker: Arc<RwLock<PermissionChecker>>,
         error_recovery: Arc<ErrorRecoveryManager>,
     ) -> Self {
@@ -170,14 +167,13 @@ impl LifecycleManager {
             operation_mode,
             workspace_manager,
             window_manager,
-            keyboard_handler,
-            tiling_engine,
-            config_manager,
+            _keyboard_handler: keyboard_handler,
+            _tiling_engine: tiling_engine,
             permission_checker,
             error_recovery,
             system_tray: None,
             shutdown_signal: Arc::new(Mutex::new(None)),
-            start_time: Instant::now(),
+            _start_time: Instant::now(),
             application_state: Arc::new(RwLock::new(initial_state)),
             performance_metrics: Arc::new(RwLock::new(PerformanceMetrics::default())),
         }
@@ -239,13 +235,6 @@ impl LifecycleManager {
         // Save current state
         if let Err(e) = self.save_application_state().await {
             warn!("Failed to save application state during shutdown: {}", e);
-        }
-
-        // Cleanup system tray
-        if let Some(tray) = &self.system_tray {
-            if let Err(e) = tray.lock().await.cleanup().await {
-                warn!("Failed to cleanup system tray: {}", e);
-            }
         }
 
         // Stop services in reverse order of initialization
@@ -342,16 +331,38 @@ impl LifecycleManager {
 
         // Spawn signal handler task
         tokio::spawn(async move {
-            tokio::select! {
-                _ = signal::ctrl_c() => {
-                    info!("Received SIGINT (Ctrl+C)");
+            #[cfg(unix)]
+            {
+                let mut sigterm_stream = match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+                    Ok(stream) => stream,
+                    Err(e) => {
+                        warn!("Failed to initialise SIGTERM handler: {}", e);
+                        match signal::ctrl_c().await {
+                            Ok(_) => info!("Received SIGINT (Ctrl+C)"),
+                            Err(err) => warn!("Failed to listen for Ctrl+C: {}", err),
+                        }
+                        return;
+                    }
+                };
+
+                tokio::select! {
+                    res = signal::ctrl_c() => {
+                        match res {
+                            Ok(_) => info!("Received SIGINT (Ctrl+C)"),
+                            Err(e) => warn!("Failed to listen for Ctrl+C: {}", e),
+                        }
+                    }
+                    _ = sigterm_stream.recv() => {
+                        info!("Received SIGTERM");
+                    }
                 }
-                #[cfg(unix)]
-                _ = async {
-                    let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate()).unwrap();
-                    sigterm.recv().await
-                } => {
-                    info!("Received SIGTERM");
+            }
+
+            #[cfg(not(unix))]
+            {
+                match signal::ctrl_c().await {
+                    Ok(_) => info!("Received Ctrl+C"),
+                    Err(e) => warn!("Failed to listen for Ctrl+C: {}", e),
                 }
             }
 
@@ -473,9 +484,6 @@ impl LifecycleManager {
         
         run_cli(
             self.workspace_manager.clone(),
-            self.window_manager.clone(),
-            self.config_manager.clone(),
-            self.permission_checker.clone(),
             self.error_recovery.clone(),
         ).await
     }

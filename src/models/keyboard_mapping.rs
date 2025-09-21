@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{fmt, str::FromStr};
 use uuid::Uuid;
 
 /// Modifier keys for keyboard shortcuts
@@ -330,6 +330,23 @@ impl ShortcutCombination {
         self.modifiers.contains(&ModifierKey::Option)
     }
 
+    /// Returns true if the supplied modifier is present
+    pub fn contains_modifier(&self, modifier: &ModifierKey) -> bool {
+        self.modifiers.contains(modifier)
+    }
+
+    /// Render the shortcut using the configuration-friendly format
+    /// (e.g. "opt+shift+1").
+    pub fn to_config_string(&self) -> String {
+        let mut parts: Vec<String> = self
+            .modifiers
+            .iter()
+            .map(|modifier| modifier_token(modifier).to_string())
+            .collect();
+        parts.push(key_token(&self.key));
+        parts.join("+")
+    }
+
     /// Replace legacy Command-only shortcuts with Option to enforce new default
     ///
     /// Returns `true` when the shortcut is updated.
@@ -345,6 +362,124 @@ impl ShortcutCombination {
         self.modifiers.sort_by_key(|m| format!("{:?}", m));
         self.modifiers.dedup();
         true
+    }
+}
+
+impl FromStr for ShortcutCombination {
+    type Err = KeyboardMappingError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut segments: Vec<&str> = s
+            .split('+')
+            .map(|segment| segment.trim())
+            .filter(|segment| !segment.is_empty())
+            .collect();
+
+        if segments.len() < 2 {
+            return Err(KeyboardMappingError::InvalidShortcutFormat(s.to_string()));
+        }
+
+        let key_segment = segments.pop().unwrap();
+        let key = parse_key_token(key_segment)
+            .ok_or_else(|| KeyboardMappingError::InvalidShortcutFormat(s.to_string()))?;
+
+        let mut modifiers = Vec::new();
+        for modifier_segment in segments {
+            let modifier = parse_modifier_token(modifier_segment)
+                .ok_or_else(|| KeyboardMappingError::InvalidShortcutFormat(s.to_string()))?;
+            modifiers.push(modifier);
+        }
+
+        let combination = ShortcutCombination::new(modifiers, key);
+        combination
+            .validate()
+            .map_err(|_| KeyboardMappingError::InvalidShortcutFormat(s.to_string()))?;
+        Ok(combination)
+    }
+}
+
+fn modifier_token(modifier: &ModifierKey) -> &'static str {
+    match modifier {
+        ModifierKey::Command => "cmd",
+        ModifierKey::Option => "opt",
+        ModifierKey::Control => "ctrl",
+        ModifierKey::Shift => "shift",
+        ModifierKey::Function => "fn",
+    }
+}
+
+fn parse_modifier_token(token: &str) -> Option<ModifierKey> {
+    match token.to_lowercase().as_str() {
+        "cmd" | "command" => Some(ModifierKey::Command),
+        "opt" | "option" | "alt" => Some(ModifierKey::Option),
+        "ctrl" | "control" => Some(ModifierKey::Control),
+        "shift" => Some(ModifierKey::Shift),
+        "fn" | "function" => Some(ModifierKey::Function),
+        _ => None,
+    }
+}
+
+fn key_token(key: &Key) -> String {
+    match key {
+        Key::Letter(c) => c.to_ascii_lowercase().to_string(),
+        Key::Number(n) => n.to_string(),
+        Key::Function(f) => format!("f{}", f),
+        Key::Arrow(ArrowDirection::Up) => "up".to_string(),
+        Key::Arrow(ArrowDirection::Down) => "down".to_string(),
+        Key::Arrow(ArrowDirection::Left) => "left".to_string(),
+        Key::Arrow(ArrowDirection::Right) => "right".to_string(),
+        Key::Space => "space".to_string(),
+        Key::Enter => "enter".to_string(),
+        Key::Tab => "tab".to_string(),
+        Key::Escape => "esc".to_string(),
+        Key::Backspace => "backspace".to_string(),
+        Key::Delete => "delete".to_string(),
+        Key::KeyCode(code) => format!("key{}", code),
+    }
+}
+
+fn parse_key_token(token: &str) -> Option<Key> {
+    let lower = token.to_lowercase();
+
+    if let Some(stripped) = lower.strip_prefix("key") {
+        if let Ok(code) = stripped.parse::<u16>() {
+            return Some(Key::KeyCode(code));
+        }
+    }
+
+    if let Some(number) = lower.parse::<u8>().ok() {
+        if number <= 9 {
+            return Some(Key::Number(number));
+        }
+    }
+
+    if lower.len() == 1 {
+        let ch = lower.chars().next().unwrap();
+        if ch.is_ascii_alphabetic() {
+            return Some(Key::Letter(ch));
+        }
+    }
+
+    if let Some(stripped) = lower.strip_prefix('f') {
+        if let Ok(func) = stripped.parse::<u8>() {
+            if func >= 1 && func <= 24 {
+                return Some(Key::Function(func));
+            }
+        }
+    }
+
+    match lower.as_str() {
+        "space" => Some(Key::Space),
+        "enter" | "return" => Some(Key::Enter),
+        "tab" => Some(Key::Tab),
+        "esc" | "escape" => Some(Key::Escape),
+        "backspace" => Some(Key::Backspace),
+        "delete" => Some(Key::Delete),
+        "up" => Some(Key::Arrow(ArrowDirection::Up)),
+        "down" => Some(Key::Arrow(ArrowDirection::Down)),
+        "left" => Some(Key::Arrow(ArrowDirection::Left)),
+        "right" => Some(Key::Arrow(ArrowDirection::Right)),
+        _ => None,
     }
 }
 
@@ -563,6 +698,9 @@ pub enum KeyboardMappingError {
 
     #[error("Invalid modifier key combination")]
     InvalidModifierCombination,
+
+    #[error("Invalid shortcut format: {0}")]
+    InvalidShortcutFormat(String),
 }
 
 impl Default for KeyboardMapping {

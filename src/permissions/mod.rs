@@ -1,6 +1,6 @@
 //! macOS Permissions Management for TilleRS
 
-use crate::{Result, TilleRSError};
+use crate::Result;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use thiserror::Error;
@@ -102,15 +102,15 @@ impl PermissionChecker {
         let mut results = HashMap::new();
         
         // Check required permissions
-        for permission in &self.config.required_permissions {
+        for permission in self.config.required_permissions.clone() {
             let status = self.check_permission(permission.clone()).await?;
-            results.insert(permission.clone(), status);
+            results.insert(permission, status);
         }
         
         // Check optional permissions
-        for permission in &self.config.optional_permissions {
+        for permission in self.config.optional_permissions.clone() {
             let status = self.check_permission(permission.clone()).await?;
-            results.insert(permission.clone(), status);
+            results.insert(permission, status);
         }
         
         self.last_check = Some(Instant::now());
@@ -144,7 +144,7 @@ impl PermissionChecker {
 
     /// Check if all required permissions are granted
     pub async fn all_required_permissions_granted(&mut self) -> Result<bool> {
-        for permission in &self.config.required_permissions {
+        for permission in self.config.required_permissions.clone() {
             let status = self.check_permission(permission.clone()).await?;
             if status != PermissionStatus::Granted {
                 warn!("Required permission {} not granted: {:?}", permission, status);
@@ -219,9 +219,9 @@ impl PermissionChecker {
         let statuses = self.check_all_permissions().await?;
         
         let mut required_granted = 0;
-        let mut required_total = self.config.required_permissions.len();
+        let required_total = self.config.required_permissions.len();
         let mut optional_granted = 0;
-        let mut optional_total = self.config.optional_permissions.len();
+        let optional_total = self.config.optional_permissions.len();
         
         for (permission, status) in &statuses {
             if status == &PermissionStatus::Granted {

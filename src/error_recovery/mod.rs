@@ -4,7 +4,7 @@
 //! permission issues, and system-level problems that can occur during window management.
 
 use crate::{Result, TilleRSError};
-use crate::permissions::{PermissionChecker, PermissionType, PermissionStatus};
+use crate::permissions::{PermissionChecker, PermissionType};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -151,7 +151,7 @@ impl ErrorRecoveryManager {
                 }
                 Ok(Err(error)) => {
                     last_error = Some(error);
-                    let recoverable_error = self.classify_error(&last_error.as_ref().unwrap());
+                    let recoverable_error = self.classify_error(last_error.as_ref().unwrap()).await;
                     
                     if let Some(recoverable) = recoverable_error {
                         let strategy = self.determine_recovery_strategy(&recoverable, attempt).await;
@@ -381,7 +381,7 @@ impl ErrorRecoveryManager {
     }
 
     async fn recover_permissions(&self, permissions: &[PermissionType]) -> Result<()> {
-        let mut checker = self.permission_checker.write().await;
+        let checker = self.permission_checker.write().await;
         
         for permission in permissions {
             info!("Requesting permission: {:?}", permission);
@@ -485,18 +485,25 @@ impl HealthStatus {
     /// Get a human-readable description of the system status
     pub fn description(&self) -> String {
         if self.is_healthy() {
-            "System healthy - all permissions granted, no circuit breakers active".to_string()
+            return "System healthy - all permissions granted, no circuit breakers active".to_string();
+        }
+
+        let mut issues: Vec<String> = Vec::new();
+
+        if !self.permissions_granted {
+            issues.push("Missing required permissions".to_string());
+        }
+
+        if !self.active_circuit_breakers.is_empty() {
+            issues.push(format!(
+                "Circuit breakers active: {}",
+                self.active_circuit_breakers.join(", ")
+            ));
+        }
+
+        if issues.is_empty() {
+            "System health degraded".to_string()
         } else {
-            let mut issues = Vec::new();
-            
-            if !self.permissions_granted {
-                issues.push("Missing required permissions");
-            }
-            
-            if !self.active_circuit_breakers.is_empty() {
-                issues.push(&format!("Circuit breakers active: {}", self.active_circuit_breakers.join(", ")));
-            }
-            
             format!("System issues: {}", issues.join(", "))
         }
     }

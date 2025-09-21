@@ -3,12 +3,14 @@ use crate::models::{
     tiling_pattern::TilingPattern,
     window_rule::WindowRule,
     monitor_configuration::MonitorConfiguration,
-    keyboard_mapping::KeyboardMapping,
+    keyboard_mapping::{
+        KeyboardMapping, ShortcutCombination, ActionType, ActionParameters, ModifierKey,
+    },
     application_profile::ApplicationProfile,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::Path;
+use std::str::FromStr;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -182,19 +184,29 @@ impl ConfigParser {
         let mut combinations = std::collections::HashSet::new();
 
         for mapping in mappings {
-            if !combinations.insert(&mapping.shortcut_combination) {
+            if let Err(err) = mapping.shortcut_combination.validate() {
                 return Err(ConfigParseError::ValidationError {
-                    message: format!("Duplicate shortcut combination: {}", mapping.shortcut_combination),
+                    message: format!(
+                        "Invalid keyboard shortcut '{}': {}",
+                        mapping.shortcut_combination.to_config_string(),
+                        err
+                    ),
                 });
             }
 
-            self.validate_shortcut_format(&mapping.shortcut_combination)?;
-            
-            if mapping.shortcut_combination.contains("cmd+") {
-                self.migration_warnings.push(format!(
-                    "Command-based shortcut detected: {}. Consider migrating to Option key.",
-                    mapping.shortcut_combination
-                ));
+            let signature = mapping.shortcut_combination.to_config_string();
+            if !combinations.insert(signature.clone()) {
+                return Err(ConfigParseError::ValidationError {
+                    message: format!("Duplicate shortcut combination: {}", signature),
+                });
+            }
+
+            if mapping
+                .shortcut_combination
+                .contains_modifier(&ModifierKey::Command)
+                && !mapping.shortcut_combination.has_option_modifier()
+            {
+                // Not an error – upstream callers can surface a warning if needed.
             }
         }
 
@@ -246,31 +258,17 @@ impl ConfigParser {
         }
 
         for mapping in &config.keyboard_mappings {
-            if let Some(target_id) = &mapping.target_id {
+            if let ActionParameters::WorkspaceId(target_id) = &mapping.parameters {
                 if !workspace_ids.contains(target_id) {
                     return Err(ConfigParseError::ValidationError {
                         message: format!(
-                            "Keyboard mapping references non-existent workspace: {}",
+                            "Keyboard mapping '{}' references non-existent workspace: {}",
+                            mapping.shortcut_combination.to_config_string(),
                             target_id
                         ),
                     });
                 }
             }
-        }
-
-        Ok(())
-    }
-
-    fn validate_shortcut_format(&self, combination: &str) -> Result<(), ConfigParseError> {
-        let regex = regex::Regex::new(r"^(cmd|ctrl|opt|shift)(\+(cmd|ctrl|opt|shift))*\+[a-zA-Z0-9F1-F12]+$")
-            .map_err(|e| ConfigParseError::ValidationError {
-                message: format!("Invalid regex: {}", e),
-            })?;
-
-        if !regex.is_match(combination) {
-            return Err(ConfigParseError::ValidationError {
-                message: format!("Invalid shortcut format: {}", combination),
-            });
         }
 
         Ok(())
@@ -303,25 +301,45 @@ impl ConfigParser {
         let mut migrated_mappings = Vec::new();
 
         for legacy in legacy_mappings {
-            let migrated_combination = self.migrate_shortcut_combination(&legacy.shortcut_combination)?;
-            
-            if migrated_combination != legacy.shortcut_combination {
+            let mut combination = ShortcutCombination::from_str(&legacy.shortcut_combination)
+                .map_err(|e| ConfigParseError::MigrationError {
+                    message: format!(
+                        "Invalid legacy shortcut '{}': {}",
+                        legacy.shortcut_combination,
+                        e
+                    ),
+                })?;
+
+            if combination.migrate_command_to_option() {
                 self.migration_warnings.push(format!(
                     "Migrated shortcut: {} → {}",
                     legacy.shortcut_combination,
-                    migrated_combination
+                    combination.to_config_string()
                 ));
             }
 
-            migrated_mappings.push(KeyboardMapping {
-                id: legacy.id,
-                shortcut_combination: migrated_combination,
-                action_type: legacy.action_type,
-                target_id: legacy.target_id,
-                parameters: legacy.parameters,
-                enabled: legacy.enabled,
-                global_scope: legacy.global_scope,
-            });
+            let (action_type, parameters, description) =
+                self.convert_legacy_action(&legacy, &combination);
+
+            let mut mapping = KeyboardMapping::new(
+                format!("Legacy {}", legacy.action_type.to_lowercase()),
+                combination,
+                action_type,
+                parameters,
+                legacy.enabled,
+                legacy.global_scope,
+                description,
+            )
+            .map_err(|e| ConfigParseError::MigrationError {
+                message: format!(
+                    "Failed to migrate legacy shortcut '{}': {}",
+                    legacy.shortcut_combination,
+                    e
+                ),
+            })?;
+
+            mapping.id = legacy.id;
+            migrated_mappings.push(mapping);
         }
 
         Ok(migrated_mappings)
@@ -334,6 +352,51 @@ impl ConfigParser {
             Ok(combination.replace("+cmd+", "+opt+"))
         } else {
             Ok(combination.to_string())
+        }
+    }
+
+    fn convert_legacy_action(
+        &self,
+        legacy: &LegacyKeyboardMapping,
+        combination: &ShortcutCombination,
+    ) -> (ActionType, ActionParameters, Option<String>) {
+        let action_key = legacy.action_type.to_ascii_lowercase();
+
+        match action_key.as_str() {
+            "switch_workspace" | "switchworkspace" => {
+                let params = legacy
+                    .target_id
+                    .map(ActionParameters::WorkspaceId)
+                    .unwrap_or(ActionParameters::None);
+                (ActionType::SwitchWorkspace, params, None)
+            }
+            "move_window" | "movewindow" => {
+                let params = legacy
+                    .target_id
+                    .map(ActionParameters::WorkspaceId)
+                    .unwrap_or(ActionParameters::None);
+                (ActionType::MoveWindow, params, None)
+            }
+            _ => {
+                let params = legacy
+                    .parameters
+                    .clone()
+                    .map(ActionParameters::Custom)
+                    .unwrap_or(ActionParameters::None);
+                let description = legacy.modifier_preference.as_ref().map(|pref| {
+                    format!(
+                        "Converted legacy action '{}' with preferred modifier '{}' for shortcut {}",
+                        legacy.action_type,
+                        pref,
+                        combination.to_config_string()
+                    )
+                });
+                (
+                    ActionType::Custom(legacy.action_type.clone()),
+                    params,
+                    description,
+                )
+            }
         }
     }
 
@@ -376,10 +439,7 @@ impl Default for ConfigParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::workspace::Workspace;
-    use crate::models::tiling_pattern::{TilingPattern, LayoutAlgorithm, ResizeBehavior};
     use uuid::Uuid;
-    use chrono::Utc;
 
     #[test]
     fn test_parse_valid_workspace_toml() {
@@ -454,17 +514,11 @@ last_used = "2024-01-01T00:00:00Z"
         assert!(result.is_ok());
         
         let migrated = result.unwrap();
-        assert_eq!(migrated[0].shortcut_combination, "opt+1");
+        assert_eq!(
+            migrated[0].shortcut_combination.to_config_string(),
+            "opt+1"
+        );
         assert!(!parser.get_migration_warnings().is_empty());
     }
 
-    #[test]
-    fn test_shortcut_format_validation() {
-        let parser = ConfigParser::new();
-        
-        assert!(parser.validate_shortcut_format("opt+1").is_ok());
-        assert!(parser.validate_shortcut_format("opt+shift+1").is_ok());
-        assert!(parser.validate_shortcut_format("cmd+ctrl+alt+1").is_err());
-        assert!(parser.validate_shortcut_format("invalid").is_err());
-    }
 }

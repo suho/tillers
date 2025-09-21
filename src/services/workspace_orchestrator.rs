@@ -1,4 +1,4 @@
-use crate::models::{TilingPattern, Workspace};
+use crate::models::TilingPattern;
 use crate::models::keyboard_mapping::ActionParameters;
 use crate::services::{
     keyboard_handler::{KeyboardHandler, KeyboardEvent},
@@ -9,7 +9,7 @@ use crate::services::{
 use crate::{Result, TilleRSError};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -479,8 +479,7 @@ impl WorkspaceOrchestrator {
     /// Get orchestrator metrics and statistics
     pub async fn get_metrics(&self) -> OrchestratorMetrics {
         let workspace_metrics = self.workspace_manager.get_metrics().await;
-        let window_metrics = self.window_manager.metrics().await;
-        
+
         OrchestratorMetrics {
             workspace_switches: workspace_metrics.switch_count,
             windows_tiled: 0, // Would need to track this
@@ -580,7 +579,7 @@ mod tests {
             WorkspaceManager::new(WorkspaceManagerConfig::default())
                 .expect("Failed to create workspace manager")
         );
-        let window_manager = Arc::new(WindowManager::new());
+        let window_manager = Arc::new(WindowManager::with_default_providers());
         let tiling_engine = Arc::new(TilingEngine::new());
         let keyboard_handler = Arc::new(KeyboardHandler::new(std::collections::HashSet::new()));
 
@@ -600,7 +599,7 @@ mod tests {
             WorkspaceManager::new(WorkspaceManagerConfig::default())
                 .expect("Failed to create workspace manager")
         );
-        let window_manager = Arc::new(WindowManager::new());
+        let window_manager = Arc::new(WindowManager::with_default_providers());
         let tiling_engine = Arc::new(TilingEngine::new());
         let keyboard_handler = Arc::new(KeyboardHandler::new(std::collections::HashSet::new()));
 

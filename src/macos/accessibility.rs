@@ -1,6 +1,5 @@
 use crate::{Result, TilleRSError};
 use std::sync::{Arc, RwLock};
-#[cfg(test)]
 use std::collections::HashMap;
 
 /// Two-dimensional point used for window positioning
@@ -201,14 +200,12 @@ impl AccessibilityProvider for SystemAccessibilityProvider {
 }
 
 /// Simple in-memory provider used for testing the higher level services
-#[cfg(test)]
 #[derive(Debug)]
 pub struct InMemoryAccessibilityProvider {
     windows: RwLock<HashMap<u32, AXWindow>>,
     status: RwLock<PermissionStatus>,
 }
 
-#[cfg(test)]
 impl InMemoryAccessibilityProvider {
     pub fn new_with(windows: Vec<AXWindow>) -> Self {
         let mut map = HashMap::new();
@@ -233,7 +230,6 @@ impl InMemoryAccessibilityProvider {
     }
 }
 
-#[cfg(test)]
 impl AccessibilityProvider for InMemoryAccessibilityProvider {
     fn ensure_permissions(&self) -> Result<()> {
         match *self.status.read().unwrap() {
@@ -300,7 +296,6 @@ impl AccessibilityProvider for InMemoryAccessibilityProvider {
     }
 }
 
-#[cfg(test)]
 impl Default for InMemoryAccessibilityProvider {
     fn default() -> Self {
         Self {

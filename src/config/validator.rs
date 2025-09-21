@@ -3,7 +3,7 @@ use crate::models::{
     workspace::Workspace,
     tiling_pattern::TilingPattern,
     window_rule::WindowRule,
-    keyboard_mapping::KeyboardMapping,
+    keyboard_mapping::{KeyboardMapping, ShortcutCombination, ActionParameters, ModifierKey},
     application_profile::ApplicationProfile,
     monitor_configuration::MonitorConfiguration,
 };
@@ -175,24 +175,6 @@ impl ConfigValidator {
                 });
             }
 
-            if pattern.gap_size < 0 {
-                results.push(ValidationResult {
-                    rule: self.get_rule("negative_gap_size").unwrap(),
-                    message: format!("Gap size {} cannot be negative", pattern.gap_size),
-                    entity_id: Some(pattern.id),
-                    entity_type: "TilingPattern".to_string(),
-                });
-            }
-
-            if pattern.window_margin < 0 {
-                results.push(ValidationResult {
-                    rule: self.get_rule("negative_window_margin").unwrap(),
-                    message: format!("Window margin {} cannot be negative", pattern.window_margin),
-                    entity_id: Some(pattern.id),
-                    entity_type: "TilingPattern".to_string(),
-                });
-            }
-
             if pattern.max_windows == 0 {
                 results.push(ValidationResult {
                     rule: self.get_rule("zero_max_windows").unwrap(),
@@ -230,31 +212,11 @@ impl ConfigValidator {
                 }
             }
 
-            if rule.z_order_priority < 0 {
-                results.push(ValidationResult {
-                    rule: self.get_rule("negative_z_order").unwrap(),
-                    message: "Z-order priority cannot be negative".to_string(),
-                    entity_id: Some(rule.id),
-                    entity_type: "WindowRule".to_string(),
-                });
-            }
-
-            if let Some(ref pos) = rule.fixed_position {
-                if pos.x < 0.0 || pos.y < 0.0 {
-                    results.push(ValidationResult {
-                        rule: self.get_rule("negative_fixed_position").unwrap(),
-                        message: "Fixed position coordinates cannot be negative".to_string(),
-                        entity_id: Some(rule.id),
-                        entity_type: "WindowRule".to_string(),
-                    });
-                }
-            }
-
-            if let Some(ref size) = rule.fixed_size {
-                if size.width <= 0.0 || size.height <= 0.0 {
+            if let Some(ref geometry) = rule.fixed_geometry {
+                if geometry.width == 0 || geometry.height == 0 {
                     results.push(ValidationResult {
                         rule: self.get_rule("invalid_fixed_size").unwrap(),
-                        message: "Fixed size dimensions must be positive".to_string(),
+                        message: "Fixed geometry dimensions must be positive".to_string(),
                         entity_id: Some(rule.id),
                         entity_type: "WindowRule".to_string(),
                     });
@@ -267,33 +229,56 @@ impl ConfigValidator {
 
     pub fn validate_keyboard_mappings(&self, mappings: &[KeyboardMapping]) -> Vec<ValidationResult> {
         let mut results = Vec::new();
-        let mut shortcut_map = HashMap::new();
+        let mut shortcut_map: HashMap<String, Uuid> = HashMap::new();
 
         for mapping in mappings {
-            if let Some(existing_id) = shortcut_map.insert(&mapping.shortcut_combination, mapping.id) {
+            let signature = mapping.shortcut_combination.to_config_string();
+
+            if let Some(existing_id) = shortcut_map.insert(signature.clone(), mapping.id) {
                 if existing_id != mapping.id {
                     results.push(ValidationResult {
                         rule: self.get_rule("duplicate_keyboard_shortcut").unwrap(),
-                        message: format!("Keyboard shortcut '{}' is used by multiple mappings", mapping.shortcut_combination),
+                        message: format!(
+                            "Keyboard shortcut '{}' is used by multiple mappings",
+                            signature
+                        ),
                         entity_id: Some(mapping.id),
                         entity_type: "KeyboardMapping".to_string(),
                     });
                 }
             }
 
-            if !self.keyboard_shortcut_regex.is_match(&mapping.shortcut_combination) {
+            if let Err(err) = mapping.shortcut_combination.validate() {
                 results.push(ValidationResult {
                     rule: self.get_rule("invalid_keyboard_shortcut").unwrap(),
-                    message: format!("Invalid keyboard shortcut format: '{}'", mapping.shortcut_combination),
+                    message: format!(
+                        "Invalid keyboard shortcut '{}': {}",
+                        signature,
+                        err
+                    ),
+                    entity_id: Some(mapping.id),
+                    entity_type: "KeyboardMapping".to_string(),
+                });
+            } else if !self.keyboard_shortcut_regex.is_match(&signature) {
+                results.push(ValidationResult {
+                    rule: self.get_rule("invalid_keyboard_shortcut").unwrap(),
+                    message: format!("Invalid keyboard shortcut format: '{}'", signature),
                     entity_id: Some(mapping.id),
                     entity_type: "KeyboardMapping".to_string(),
                 });
             }
 
-            if mapping.shortcut_combination.contains("cmd+") {
+            if mapping
+                .shortcut_combination
+                .contains_modifier(&ModifierKey::Command)
+                && !mapping.shortcut_combination.has_option_modifier()
+            {
                 results.push(ValidationResult {
                     rule: self.get_rule("legacy_command_shortcut").unwrap(),
-                    message: format!("Consider migrating Command-based shortcut '{}' to Option key", mapping.shortcut_combination),
+                    message: format!(
+                        "Consider migrating Command-based shortcut '{}' to Option key",
+                        signature
+                    ),
                     entity_id: Some(mapping.id),
                     entity_type: "KeyboardMapping".to_string(),
                 });
@@ -302,7 +287,7 @@ impl ConfigValidator {
             if self.is_system_reserved_shortcut(&mapping.shortcut_combination) {
                 results.push(ValidationResult {
                     rule: self.get_rule("system_reserved_shortcut").unwrap(),
-                    message: format!("Shortcut '{}' may conflict with system shortcuts", mapping.shortcut_combination),
+                    message: format!("Shortcut '{}' may conflict with system shortcuts", signature),
                     entity_id: Some(mapping.id),
                     entity_type: "KeyboardMapping".to_string(),
                 });
@@ -417,11 +402,14 @@ impl ConfigValidator {
         }
 
         for mapping in &config.keyboard_mappings {
-            if let Some(target_id) = mapping.target_id {
-                if !workspace_ids.contains(&target_id) {
+            if let ActionParameters::WorkspaceId(target_id) = &mapping.parameters {
+                if !workspace_ids.contains(target_id) {
                     results.push(ValidationResult {
                         rule: self.get_rule("missing_keyboard_target_reference").unwrap(),
-                        message: "Keyboard mapping references non-existent workspace".to_string(),
+                        message: format!(
+                            "Keyboard mapping '{}' references non-existent workspace",
+                            mapping.shortcut_combination.to_config_string()
+                        ),
                         entity_id: Some(mapping.id),
                         entity_type: "KeyboardMapping".to_string(),
                     });
@@ -497,14 +485,15 @@ impl ConfigValidator {
         results
     }
 
-    fn is_system_reserved_shortcut(&self, combination: &str) -> bool {
-        let reserved_shortcuts = &[
+    fn is_system_reserved_shortcut(&self, combination: &ShortcutCombination) -> bool {
+        let signature = combination.to_config_string().to_lowercase();
+        let reserved_shortcuts = [
             "cmd+space", "cmd+tab", "cmd+q", "cmd+w", "cmd+a", "cmd+s", "cmd+d", "cmd+f",
             "cmd+z", "cmd+x", "cmd+c", "cmd+v", "cmd+shift+z", "cmd+shift+4", "cmd+shift+3",
             "ctrl+space", "ctrl+up", "ctrl+down", "ctrl+left", "ctrl+right",
         ];
 
-        reserved_shortcuts.contains(&combination)
+        reserved_shortcuts.iter().any(|reserved| *reserved == signature)
     }
 
     fn get_rule(&self, name: &str) -> Option<ValidationRule> {
@@ -676,10 +665,12 @@ impl Default for ConfigValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::workspace::Workspace;
+    use crate::models::workspace::{Workspace, WorkspaceState};
     use crate::models::tiling_pattern::{TilingPattern, LayoutAlgorithm, ResizeBehavior};
+    use crate::models::keyboard_mapping::ShortcutCombination;
     use uuid::Uuid;
     use chrono::Utc;
+    use std::str::FromStr;
 
     #[test]
     fn test_validate_workspace_duplicate_names() {
@@ -694,7 +685,8 @@ mod tests {
                 monitor_assignments: std::collections::HashMap::new(),
                 auto_arrange: true,
                 created_at: Utc::now(),
-                last_used: Utc::now(),
+                last_used: Some(Utc::now()),
+                state: WorkspaceState::default(),
             },
             Workspace {
                 id: Uuid::new_v4(),
@@ -705,7 +697,8 @@ mod tests {
                 monitor_assignments: std::collections::HashMap::new(),
                 auto_arrange: true,
                 created_at: Utc::now(),
-                last_used: Utc::now(),
+                last_used: Some(Utc::now()),
+                state: WorkspaceState::default(),
             },
         ];
 
@@ -727,7 +720,8 @@ mod tests {
                 monitor_assignments: std::collections::HashMap::new(),
                 auto_arrange: true,
                 created_at: Utc::now(),
-                last_used: Utc::now(),
+                last_used: Some(Utc::now()),
+                state: WorkspaceState::default(),
             },
         ];
 
@@ -760,8 +754,12 @@ mod tests {
     #[test]
     fn test_validate_system_reserved_shortcuts() {
         let validator = ConfigValidator::new().unwrap();
-        assert!(validator.is_system_reserved_shortcut("cmd+space"));
-        assert!(validator.is_system_reserved_shortcut("cmd+tab"));
-        assert!(!validator.is_system_reserved_shortcut("opt+1"));
+        let cmd_space = ShortcutCombination::from_str("cmd+space").unwrap();
+        let cmd_tab = ShortcutCombination::from_str("cmd+tab").unwrap();
+        let opt_one = ShortcutCombination::from_str("opt+1").unwrap();
+
+        assert!(validator.is_system_reserved_shortcut(&cmd_space));
+        assert!(validator.is_system_reserved_shortcut(&cmd_tab));
+        assert!(!validator.is_system_reserved_shortcut(&opt_one));
     }
 }

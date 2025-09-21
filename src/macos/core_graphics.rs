@@ -90,13 +90,11 @@ impl DisplayProvider for SystemDisplayProvider {
 }
 
 /// In-memory display provider for testing
-#[cfg(test)]
 #[derive(Debug, Default)]
 pub struct InMemoryDisplayProvider {
     monitors: RwLock<HashMap<String, MonitorInfo>>,
 }
 
-#[cfg(test)]
 impl InMemoryDisplayProvider {
     pub fn new_with(monitors: Vec<MonitorInfo>) -> Self {
         let mut map = HashMap::new();
@@ -109,7 +107,6 @@ impl InMemoryDisplayProvider {
     }
 }
 
-#[cfg(test)]
 impl DisplayProvider for InMemoryDisplayProvider {
     fn list_monitors(&self) -> Result<Vec<MonitorInfo>> {
         let mut monitors: Vec<MonitorInfo> =

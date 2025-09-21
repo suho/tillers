@@ -4,17 +4,15 @@
 //! and system administration of the TilleRS window manager.
 
 use crate::{
-    config::ConfigParser,
     error_recovery::ErrorRecoveryManager,
-    permissions::PermissionChecker,
-    services::{WorkspaceManager, WindowManager},
-    Result, TilleRSError,
+    services::WorkspaceManager,
+    Result,
 };
 use clap::{Args, Parser, Subcommand};
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, info, error};
 use serde_json;
+use std::env;
 
 /// TilleRS command-line interface
 #[derive(Parser)]
@@ -306,9 +304,6 @@ pub enum ServiceActions {
 /// CLI command executor
 pub struct TilleRSCliExecutor {
     workspace_manager: Arc<WorkspaceManager>,
-    window_manager: Arc<WindowManager>,
-    config_manager: Arc<ConfigManager>,
-    permission_checker: Arc<RwLock<PermissionChecker>>,
     error_recovery: Arc<ErrorRecoveryManager>,
     json_output: bool,
 }
@@ -317,17 +312,11 @@ impl TilleRSCliExecutor {
     /// Create a new CLI executor
     pub fn new(
         workspace_manager: Arc<WorkspaceManager>,
-        window_manager: Arc<WindowManager>,
-        config_manager: Arc<ConfigManager>,
-        permission_checker: Arc<RwLock<PermissionChecker>>,
         error_recovery: Arc<ErrorRecoveryManager>,
         json_output: bool,
     ) -> Self {
         Self {
             workspace_manager,
-            window_manager,
-            config_manager,
-            permission_checker,
             error_recovery,
             json_output,
         }
@@ -372,10 +361,11 @@ impl TilleRSCliExecutor {
                     } else {
                         println!("Workspaces:");
                         for workspace in workspaces {
-                            println!("  {} - {} ({})", 
-                                workspace.id, 
+                            println!(
+                                "  {} - {} ({})",
+                                workspace.id,
                                 workspace.name,
-                                if workspace.is_active { "active" } else { "inactive" }
+                                if workspace.is_active() { "active" } else { "inactive" }
                             );
                         }
                     }
@@ -506,10 +496,19 @@ impl TilleRSCliExecutor {
                 let health_status = self.error_recovery.get_health_status().await?;
                 
                 if self.json_output {
+                    let breaker_info = if health_status.active_circuit_breakers.is_empty() {
+                        Vec::new()
+                    } else {
+                        health_status.active_circuit_breakers.clone()
+                    };
+                    let last_check_secs = health_status
+                        .last_permission_check
+                        .map(|instant| instant.elapsed().as_secs_f64());
                     let status_json = serde_json::json!({
                         "permissions_granted": health_status.permissions_granted,
-                        "active_circuit_breakers": health_status.active_circuit_breakers,
-                        "last_check": health_status.last_permission_check
+                        "active_circuit_breakers": breaker_info,
+                        "last_check_secs": last_check_secs,
+                        "description": health_status.description(),
                     });
                     println!("{}", serde_json::to_string_pretty(&status_json)?);
                 } else {
@@ -567,10 +566,21 @@ impl TilleRSCliExecutor {
                 let workspace_count = self.workspace_manager.get_workspace_count().await;
                 
                 if self.json_output {
+                    let breaker_list = &health_status.active_circuit_breakers;
+                    let breaker_info = if breaker_list.is_empty() {
+                        Vec::new()
+                    } else {
+                        breaker_list.clone()
+                    };
+                    let last_check_secs = health_status
+                        .last_permission_check
+                        .map(|instant| instant.elapsed().as_secs_f64());
+
                     let health_json = serde_json::json!({
                         "healthy": health_status.is_healthy(),
                         "permissions_granted": health_status.permissions_granted,
-                        "active_circuit_breakers": health_status.active_circuit_breakers,
+                        "active_circuit_breakers": breaker_info,
+                        "last_permission_check_secs": last_check_secs,
                         "workspace_count": workspace_count,
                         "description": health_status.description()
                     });
@@ -579,7 +589,12 @@ impl TilleRSCliExecutor {
                     println!("=== TilleRS Health Check ===");
                     println!("Status: {}", if health_status.is_healthy() { "HEALTHY" } else { "UNHEALTHY" });
                     println!("Permissions: {}", if health_status.permissions_granted { "OK" } else { "MISSING" });
-                    println!("Circuit breakers: {}", if health_status.active_circuit_breakers.is_empty() { "None" } else { format!("{:?}", health_status.active_circuit_breakers) });
+                    let circuit_breakers = if health_status.active_circuit_breakers.is_empty() {
+                        "None".to_string()
+                    } else {
+                        format!("{:?}", health_status.active_circuit_breakers)
+                    };
+                    println!("Circuit breakers: {}", circuit_breakers);
                     println!("Workspaces: {}", workspace_count);
                     println!("Description: {}", health_status.description());
                 }
@@ -588,7 +603,11 @@ impl TilleRSCliExecutor {
                 info!("Gathering system information");
                 println!("=== System Information ===");
                 println!("TilleRS version: {}", env!("CARGO_PKG_VERSION"));
-                println!("Rust version: {}", env!("RUSTC_VERSION"));
+                let rust_version = option_env!("RUSTC_VERSION")
+                    .map(str::to_string)
+                    .or_else(|| env::var("RUSTC_VERSION").ok())
+                    .unwrap_or_else(|| "unknown".to_string());
+                println!("Rust version: {}", rust_version);
                 println!("Target OS: {}", std::env::consts::OS);
                 println!("Target architecture: {}", std::env::consts::ARCH);
             }
@@ -647,9 +666,6 @@ impl TilleRSCliExecutor {
 /// Run the CLI interface
 pub async fn run_cli(
     workspace_manager: Arc<WorkspaceManager>,
-    window_manager: Arc<WindowManager>,
-    config_manager: Arc<ConfigManager>,
-    permission_checker: Arc<RwLock<PermissionChecker>>,
     error_recovery: Arc<ErrorRecoveryManager>,
 ) -> Result<()> {
     let cli = TilleRSCli::parse();
@@ -662,9 +678,6 @@ pub async fn run_cli(
     
     let executor = TilleRSCliExecutor::new(
         workspace_manager,
-        window_manager,
-        config_manager,
-        permission_checker,
         error_recovery,
         cli.json,
     );

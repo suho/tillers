@@ -1,5 +1,9 @@
-use crate::macos::accessibility::{AXWindow, AccessibilityProvider, Point, Rect, Size};
-use crate::macos::core_graphics::{DisplayProvider, MonitorInfo};
+use crate::macos::accessibility::{
+    AXWindow, AccessibilityProvider, Point, Rect, Size, InMemoryAccessibilityProvider,
+};
+use crate::macos::core_graphics::{
+    DisplayProvider, MonitorInfo, InMemoryDisplayProvider,
+};
 use crate::{Result, TilleRSError};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -80,6 +84,16 @@ pub struct WindowManager {
 }
 
 impl WindowManager {
+    /// Construct a window manager backed by the in-memory providers. This is
+    /// suitable for tests and for the current stubbed binary entry point.
+    pub fn with_default_providers() -> Self {
+        let accessibility: Arc<dyn AccessibilityProvider> =
+            Arc::new(InMemoryAccessibilityProvider::default());
+        let displays: Arc<dyn DisplayProvider> =
+            Arc::new(InMemoryDisplayProvider::default());
+        Self::new(accessibility, displays)
+    }
+
     pub fn new(
         accessibility: Arc<dyn AccessibilityProvider>,
         displays: Arc<dyn DisplayProvider>,

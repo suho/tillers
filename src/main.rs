@@ -4,18 +4,18 @@
 //! error recovery, and application lifecycle management.
 
 use tillers::{
-    config::{ConfigParser},
     error_recovery::{ErrorRecoveryManager, RecoveryConfig},
     logging::{LogConfig, init_logging},
     permissions::{PermissionChecker, PermissionConfig},
     services::{
         WorkspaceManager, WorkspaceManagerConfig,
-        WindowManager, WindowManagerConfig,
-        KeyboardHandler, KeyboardHandlerConfig,
-        TilingEngine, TilingEngineConfig,
+        WindowManager,
+        KeyboardHandler,
+        TilingEngine,
     },
     Result, TilleRSError,
 };
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::{
     signal,
@@ -26,17 +26,15 @@ use tracing::{debug, error, info, warn, instrument};
 
 /// Application configuration and state
 pub struct TilleRSApp {
-    /// Configuration manager
-    config_manager: Arc<ConfigManager>,
     /// Error recovery manager
     error_recovery: Arc<ErrorRecoveryManager>,
     /// Permission checker
-    permission_checker: Arc<RwLock<PermissionChecker>>,
+    _permission_checker: Arc<RwLock<PermissionChecker>>,
     /// Core services
     workspace_manager: Arc<WorkspaceManager>,
-    window_manager: Arc<WindowManager>,
-    keyboard_handler: Arc<KeyboardHandler>,
-    tiling_engine: Arc<TilingEngine>,
+    _window_manager: Arc<WindowManager>,
+    _keyboard_handler: Arc<KeyboardHandler>,
+    _tiling_engine: Arc<TilingEngine>,
     /// Shutdown signal
     shutdown_tx: broadcast::Sender<()>,
     shutdown_rx: broadcast::Receiver<()>,
@@ -58,10 +56,6 @@ impl TilleRSApp {
         let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
 
         // Initialize configuration manager
-        let config_manager_config = ConfigManagerConfig::default();
-        let config_manager = Arc::new(ConfigManager::new(config_manager_config));
-        debug!("Configuration manager initialized");
-
         // Initialize permission checker
         let permission_config = PermissionConfig::default();
         let permission_checker = Arc::new(RwLock::new(PermissionChecker::new(permission_config)));
@@ -76,7 +70,7 @@ impl TilleRSApp {
         debug!("Error recovery manager initialized");
 
         // Check permissions before initializing system services
-        Self::check_initial_permissions(&permission_checker, &error_recovery).await?;
+        Self::check_initial_permissions(&error_recovery).await?;
 
         // Initialize core services with error recovery
         let workspace_manager = Self::init_workspace_manager(&error_recovery).await?;
@@ -87,13 +81,12 @@ impl TilleRSApp {
         info!("All core services initialized successfully");
 
         Ok(Self {
-            config_manager,
             error_recovery,
-            permission_checker,
+            _permission_checker: permission_checker,
             workspace_manager,
-            window_manager,
-            keyboard_handler,
-            tiling_engine,
+            _window_manager: window_manager,
+            _keyboard_handler: keyboard_handler,
+            _tiling_engine: tiling_engine,
             shutdown_tx,
             shutdown_rx,
         })
@@ -179,7 +172,6 @@ impl TilleRSApp {
     // Private helper methods
 
     async fn check_initial_permissions(
-        permission_checker: &Arc<RwLock<PermissionChecker>>,
         error_recovery: &Arc<ErrorRecoveryManager>,
     ) -> Result<()> {
         info!("Checking macOS permissions...");
@@ -204,9 +196,11 @@ impl TilleRSApp {
     }
 
     async fn init_workspace_manager(error_recovery: &Arc<ErrorRecoveryManager>) -> Result<Arc<WorkspaceManager>> {
-        let manager = error_recovery.recover_and_retry("workspace_manager_init", || {
-            Ok(WorkspaceManager::new(WorkspaceManagerConfig::default()))
-        }).await?;
+        let manager = error_recovery
+            .recover_and_retry("workspace_manager_init", || {
+                WorkspaceManager::new(WorkspaceManagerConfig::default())
+            })
+            .await?;
 
         debug!("Workspace manager initialized");
         Ok(Arc::new(manager))
@@ -214,7 +208,7 @@ impl TilleRSApp {
 
     async fn init_window_manager(error_recovery: &Arc<ErrorRecoveryManager>) -> Result<Arc<WindowManager>> {
         let manager = error_recovery.recover_and_retry("window_manager_init", || {
-            WindowManager::new(WindowManagerConfig::default())
+            Ok(WindowManager::with_default_providers())
         }).await?;
 
         debug!("Window manager initialized");
@@ -222,34 +216,47 @@ impl TilleRSApp {
     }
 
     async fn init_tiling_engine(error_recovery: &Arc<ErrorRecoveryManager>) -> Result<Arc<TilingEngine>> {
-        let engine = error_recovery.recover_and_retry("tiling_engine_init", || {
-            Ok(TilingEngine::new(TilingEngineConfig::default()))
-        }).await?;
+        let engine = error_recovery
+            .recover_and_retry("tiling_engine_init", || Ok(TilingEngine::new()))
+            .await?;
 
         debug!("Tiling engine initialized");
         Ok(Arc::new(engine))
     }
 
     async fn init_keyboard_handler(error_recovery: &Arc<ErrorRecoveryManager>) -> Result<Arc<KeyboardHandler>> {
-        let handler = error_recovery.recover_and_retry("keyboard_handler_init", || {
-            KeyboardHandler::new(KeyboardHandlerConfig::default())
-        }).await?;
+        let handler = error_recovery
+            .recover_and_retry("keyboard_handler_init", || {
+                Ok(KeyboardHandler::new(HashSet::new()))
+            })
+            .await?;
 
         debug!("Keyboard handler initialized");
         Ok(Arc::new(handler))
     }
 
     async fn setup_signal_handlers(shutdown_tx: broadcast::Sender<()>) -> Result<()> {
-        tokio::select! {
-            _ = signal::ctrl_c() => {
-                info!("Received SIGINT (Ctrl+C)");
+        #[cfg(unix)]
+        {
+            let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())?;
+            tokio::select! {
+                res = signal::ctrl_c() => {
+                    match res {
+                        Ok(_) => info!("Received SIGINT (Ctrl+C)"),
+                        Err(e) => warn!("Failed to listen for Ctrl+C: {}", e),
+                    }
+                }
+                _ = sigterm.recv() => {
+                    info!("Received SIGTERM");
+                }
             }
-            #[cfg(unix)]
-            _ = async {
-                let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())?;
-                sigterm.recv().await
-            } => {
-                info!("Received SIGTERM");
+        }
+
+        #[cfg(not(unix))]
+        {
+            match signal::ctrl_c().await {
+                Ok(_) => info!("Received Ctrl+C"),
+                Err(e) => warn!("Failed to listen for Ctrl+C: {}", e),
             }
         }
 
@@ -264,7 +271,6 @@ impl TilleRSApp {
         info!("Starting background tasks...");
 
         // Start permission monitoring
-        let permission_checker = self.permission_checker.clone();
         let error_recovery = self.error_recovery.clone();
         tokio::spawn(async move {
             loop {

@@ -138,7 +138,7 @@ impl WorkspaceManager {
 
     /// Load workspaces from configuration files
     pub async fn load_workspaces_from_config(&self) -> Result<()> {
-        let mut persistence = self.persistence.lock().await;
+        let persistence = self.persistence.lock().await;
         
         match persistence.load_workspaces() {
             Ok(workspaces) => {
@@ -178,7 +178,7 @@ impl WorkspaceManager {
             ws_lock.values().cloned().collect::<Vec<_>>()
         };
 
-        let mut persistence = self.persistence.lock().await;
+        let persistence = self.persistence.lock().await;
         persistence.save_workspaces(&workspaces)
             .map_err(|e| TilleRSError::ConfigurationError(format!("Failed to save workspaces: {}", e)))?;
 
@@ -502,6 +502,12 @@ impl WorkspaceManager {
     pub async fn get_workspace_count(&self) -> usize {
         let workspaces = self.workspaces.read().await;
         workspaces.len()
+    }
+
+    /// List all workspaces currently tracked by the manager
+    pub async fn list_workspaces(&self) -> Vec<Workspace> {
+        let workspaces = self.workspaces.read().await;
+        workspaces.values().cloned().collect()
     }
 
     /// Check if workspace limit is reached
