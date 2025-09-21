@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.specify/scripts/bash/check-task-prerequisites.sh:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
