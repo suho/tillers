@@ -38,7 +38,7 @@ jobs:
       run: cargo clippy -- -D warnings
     
     - name: Run tests
-      run: cargo test --verbose -- --skip contract:: --skip integration::
+      run: cargo test --verbose -- --skip 'contract::' --skip 'integration::'
     
     - name: Run benchmarks
       run: cargo bench --no-run
