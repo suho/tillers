@@ -1,5 +1,10 @@
 # TilleRS - Keyboard-First Tiling Window Manager for macOS
 
+> [!WARNING]
+> **🚨 EXPERIMENTAL PROJECT - DO NOT USE ON YOUR MACBOOK**
+> 
+> This is an experimental demonstration for AI-powered development tools (Spec-Kit, Claude Code, Codex) and is **NOT intended for production use**. See [WARNING.md](WARNING.md) for details.
+
 TilleRS automatically organizes windows into logical workspaces, enabling instant context switching between projects while maintaining predictable window layouts across multiple monitors.
 
 ## Overview
